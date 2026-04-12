@@ -18,6 +18,10 @@ import {
   Trash2,
   X,
   Star,
+  Bell,
+  Package,
+  MessageSquare,
+  Mail,
 } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -52,6 +56,7 @@ const emptyAddress: AddressFormData = {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const [userId, setUserId] = useState('');
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -80,6 +85,15 @@ export default function SettingsPage() {
   const [businessSuccess, setBusinessSuccess] = useState('');
   const [businessError, setBusinessError] = useState('');
 
+  // Notification preferences state
+  const [notifyOrderStatus, setNotifyOrderStatus] = useState(true);
+  const [notifyNewMessage, setNotifyNewMessage] = useState(true);
+  const [emailOrderStatus, setEmailOrderStatus] = useState(true);
+  const [emailNewMessage, setEmailNewMessage] = useState(true);
+  const [notifSaving, setNotifSaving] = useState(false);
+  const [notifSuccess, setNotifSuccess] = useState('');
+  const [notifError, setNotifError] = useState('');
+
   // Delivery addresses state
   const [addresses, setAddresses] = useState<DeliveryAddress[]>([]);
   const [addressesLoading, setAddressesLoading] = useState(true);
@@ -100,6 +114,8 @@ export default function SettingsPage() {
         return;
       }
 
+      setUserId(user.id);
+
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -115,6 +131,10 @@ export default function SettingsPage() {
         setEditName(profile.full_name || '');
         setEditCompanyName(profile.company_name || '');
         setBusinessAddress(profile.business_address || '');
+        setNotifyOrderStatus(profile.notify_order_status !== false);
+        setNotifyNewMessage(profile.notify_new_message !== false);
+        setEmailOrderStatus(profile.email_order_status !== false);
+        setEmailNewMessage(profile.email_new_message !== false);
       } else {
         setUserName(user.user_metadata?.full_name || user.email || '');
         setUserEmail(user.email || '');
@@ -246,6 +266,37 @@ export default function SettingsPage() {
       setBusinessError('Failed to update business information.');
     } finally {
       setBusinessSaving(false);
+    }
+  };
+
+  const handleSaveNotificationPrefs = async () => {
+    setNotifSaving(true);
+    setNotifError('');
+    setNotifSuccess('');
+
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          notify_order_status: notifyOrderStatus,
+          notify_new_message: notifyNewMessage,
+          email_order_status: emailOrderStatus,
+          email_new_message: emailNewMessage,
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+      setNotifSuccess('Notification preferences saved.');
+      setTimeout(() => setNotifSuccess(''), 4000);
+    } catch (err: any) {
+      console.error('Error saving notification preferences:', err);
+      setNotifError('Failed to save preferences. Please try again.');
+    } finally {
+      setNotifSaving(false);
     }
   };
 
@@ -410,7 +461,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <PortalLayout pageTitle="Settings" userName={userName} userEmail={userEmail} companyName={companyName} clientRole={clientRole}>
+      <PortalLayout pageTitle="Settings" userId={userId} userName={userName} userEmail={userEmail} companyName={companyName} clientRole={clientRole}>
         <div className="text-center py-16 text-gray-500">Loading settings...</div>
       </PortalLayout>
     );
@@ -419,6 +470,7 @@ export default function SettingsPage() {
   return (
     <PortalLayout
       pageTitle="Settings"
+      userId={userId}
       userName={userName}
       userEmail={userEmail}
       companyName={companyName}
@@ -636,6 +688,164 @@ export default function SettingsPage() {
           </CardBody>
         </Card>
       )}
+
+      {/* Notification Preferences Section */}
+      <Card className="mb-8" id="notifications">
+        <CardBody>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+              <Bell className="w-5 h-5 text-green-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Notification Preferences</h3>
+              <p className="text-sm text-gray-500">Choose how you want to be notified about activity</p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {/* Order Status Notifications */}
+            <div className="border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
+                  <Package className="w-4 h-4 text-green-600" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900">Order Status Updates</h4>
+                  <p className="text-sm text-gray-500">Get notified when your order status changes</p>
+                </div>
+              </div>
+              <div className="space-y-3 ml-11">
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div className="flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-700">In-app notifications</span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={notifyOrderStatus}
+                    onClick={() => setNotifyOrderStatus(!notifyOrderStatus)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                      notifyOrderStatus ? 'bg-green-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        notifyOrderStatus ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </label>
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-700">Email notifications</span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={emailOrderStatus}
+                    onClick={() => setEmailOrderStatus(!emailOrderStatus)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                      emailOrderStatus ? 'bg-green-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        emailOrderStatus ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </label>
+              </div>
+            </div>
+
+            {/* New Message Notifications */}
+            <div className="border border-gray-200 rounded-xl p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+                  <MessageSquare className="w-4 h-4 text-blue-600" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-gray-900">New Messages</h4>
+                  <p className="text-sm text-gray-500">Get notified when you receive a new message on an order</p>
+                </div>
+              </div>
+              <div className="space-y-3 ml-11">
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div className="flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-700">In-app notifications</span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={notifyNewMessage}
+                    onClick={() => setNotifyNewMessage(!notifyNewMessage)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                      notifyNewMessage ? 'bg-green-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        notifyNewMessage ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </label>
+                <label className="flex items-center justify-between cursor-pointer group">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-700">Email notifications</span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={emailNewMessage}
+                    onClick={() => setEmailNewMessage(!emailNewMessage)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                      emailNewMessage ? 'bg-green-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        emailNewMessage ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {notifError && (
+            <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg flex items-center gap-2 mt-4">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {notifError}
+            </div>
+          )}
+
+          {notifSuccess && (
+            <div className="text-sm text-green-600 bg-green-50 p-3 rounded-lg flex items-center gap-2 mt-4">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              {notifSuccess}
+            </div>
+          )}
+
+          <div className="mt-6">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSaveNotificationPrefs}
+              disabled={notifSaving}
+              isLoading={notifSaving}
+            >
+              <Save className="w-4 h-4 mr-2" />
+              Save Preferences
+            </Button>
+          </div>
+        </CardBody>
+      </Card>
 
       {/* Delivery Addresses Section */}
       <Card>
