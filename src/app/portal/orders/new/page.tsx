@@ -28,6 +28,9 @@ const STEPS = [
   { id: 3, label: 'Review & Submit' },
 ];
 
+// Single client instance to ensure auth session is shared
+const supabase = createClient();
+
 export default function NewOrderPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
@@ -40,7 +43,6 @@ export default function NewOrderPage() {
   const [userId, setUserId] = useState('');
 
   useEffect(() => {
-    const supabase = createClient();
     async function loadUser() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/auth/login'); return; }
@@ -139,7 +141,6 @@ export default function NewOrderPage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const supabase = createClient();
       const orderNumber = `ORD-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
 
       const { data, error } = await supabase
@@ -159,8 +160,8 @@ export default function NewOrderPage() {
         .single();
 
       if (error) {
-        console.error('Error creating order:', error);
-        alert('Failed to create order. Please try again.');
+        console.error('Error creating order:', error.message, error.details, error.hint);
+        alert(`Failed to create order: ${error.message}`);
         setSubmitting(false);
         return;
       }
