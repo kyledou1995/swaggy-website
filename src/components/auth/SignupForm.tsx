@@ -30,6 +30,7 @@ export const SignupForm: React.FC = () => {
             full_name: fullName,
             company_name: companyName,
           },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
