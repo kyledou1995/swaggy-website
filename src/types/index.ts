@@ -3,6 +3,10 @@ export type OrderStatus =
   | 'submitted'
   | 'under_review'
   | 'sourcing'
+  | 'quote_ready'
+  | 'quote_accepted'
+  | 'deposit_required'
+  | 'deposit_paid'
   | 'sample_production'
   | 'sample_approval_pending'
   | 'sample_approved'
@@ -52,6 +56,19 @@ export interface Order {
   notes: string;
   created_at: string;
   updated_at: string;
+  // Quote fields
+  quote_air_price_per_unit?: number | null;
+  quote_air_lead_days?: number | null;
+  quote_ocean_price_per_unit?: number | null;
+  quote_ocean_lead_days?: number | null;
+  quote_submitted_at?: string | null;
+  selected_shipping?: 'air' | 'ocean' | null;
+  selected_shipping_at?: string | null;
+  // Deposit fields
+  deposit_amount?: number | null;
+  deposit_paid?: boolean;
+  deposit_paid_at?: string | null;
+  stripe_payment_intent_id?: string | null;
 }
 
 export interface OrderUpdate {

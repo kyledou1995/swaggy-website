@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Send, FileText, AlertCircle } from 'lucide-react';
+import { Send, FileText, AlertCircle, Plane, Ship, DollarSign, CheckCircle } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardHeader, CardBody, CardFooter } from '@/components/ui/Card';
@@ -125,6 +125,136 @@ export default function AdminOrderDetailPage() {
 
   const [statusFeedback, setStatusFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [messageFeedback, setMessageFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Quote form state
+  const [quoteAirPrice, setQuoteAirPrice] = useState('');
+  const [quoteAirDays, setQuoteAirDays] = useState('');
+  const [quoteOceanPrice, setQuoteOceanPrice] = useState('');
+  const [quoteOceanDays, setQuoteOceanDays] = useState('');
+  const [isSubmittingQuote, setIsSubmittingQuote] = useState(false);
+  const [quoteFeedback, setQuoteFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Pre-fill quote form if data exists
+  useEffect(() => {
+    if (order?.quote_air_price_per_unit) setQuoteAirPrice(String(order.quote_air_price_per_unit));
+    if (order?.quote_air_lead_days) setQuoteAirDays(String(order.quote_air_lead_days));
+    if (order?.quote_ocean_price_per_unit) setQuoteOceanPrice(String(order.quote_ocean_price_per_unit));
+    if (order?.quote_ocean_lead_days) setQuoteOceanDays(String(order.quote_ocean_lead_days));
+  }, [order?.quote_air_price_per_unit, order?.quote_air_lead_days, order?.quote_ocean_price_per_unit, order?.quote_ocean_lead_days]);
+
+  const handleSubmitQuote = async () => {
+    if (!quoteAirPrice || !quoteAirDays || !quoteOceanPrice || !quoteOceanDays) {
+      setQuoteFeedback({ type: 'error', message: 'Please fill in all quote fields.' });
+      return;
+    }
+
+    setIsSubmittingQuote(true);
+    setQuoteFeedback(null);
+
+    try {
+      const supabase = createClient();
+
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          quote_air_price_per_unit: parseFloat(quoteAirPrice),
+          quote_air_lead_days: parseInt(quoteAirDays),
+          quote_ocean_price_per_unit: parseFloat(quoteOceanPrice),
+          quote_ocean_lead_days: parseInt(quoteOceanDays),
+          quote_submitted_at: new Date().toISOString(),
+          status: 'quote_ready',
+        })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      // Create update record
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: 'quote_ready',
+        message: `Quote submitted: Air freight $${parseFloat(quoteAirPrice).toFixed(2)}/unit (${quoteAirDays} days) | Ocean freight $${parseFloat(quoteOceanPrice).toFixed(2)}/unit (${quoteOceanDays} days)`,
+        updated_by: adminUser?.id,
+      }]);
+
+      // Send message to client
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: adminUser?.id,
+        sender_role: 'admin',
+        message: `Your quote is ready! We've sourced your product and have two shipping options for you:\n\n✈️ Air Freight (DDP): $${parseFloat(quoteAirPrice).toFixed(2)}/unit — Est. ${quoteAirDays} business days\n🚢 Ocean Freight (DDP): $${parseFloat(quoteOceanPrice).toFixed(2)}/unit — Est. ${quoteOceanDays} business days\n\nPlease review and select your preferred option on your order page.`,
+        attachments: [],
+      }]);
+
+      setOrder({ ...order!,
+        status: 'quote_ready' as any,
+        quote_air_price_per_unit: parseFloat(quoteAirPrice),
+        quote_air_lead_days: parseInt(quoteAirDays),
+        quote_ocean_price_per_unit: parseFloat(quoteOceanPrice),
+        quote_ocean_lead_days: parseInt(quoteOceanDays),
+        quote_submitted_at: new Date().toISOString(),
+      });
+      setQuoteFeedback({ type: 'success', message: 'Quote submitted and client notified!' });
+
+      // Notify client
+      if (order?.client_id) {
+        await notifyOrgMembers({
+          orderId,
+          clientId: order.client_id,
+          type: 'order_status',
+          title: `Quote Ready — Order #${order.order_number || orderId.slice(0, 8)}`,
+          body: 'Your quote is ready! Please review the shipping options and select your preference.',
+          supabaseClient: supabase,
+        });
+      }
+
+      // Refresh
+      const { data: updatesData } = await supabase
+        .from('order_updates').select('*').eq('order_id', orderId).order('created_at', { ascending: false });
+      setUpdates((updatesData as OrderUpdate[]) || []);
+      const { data: messagesData } = await supabase
+        .from('order_messages').select('*').eq('order_id', orderId).order('created_at', { ascending: true });
+      setMessages((messagesData as OrderMessage[]) || []);
+    } catch (error: any) {
+      setQuoteFeedback({ type: 'error', message: error.message || 'Failed to submit quote.' });
+    } finally {
+      setIsSubmittingQuote(false);
+    }
+  };
+
+  const handleConfirmDeposit = async () => {
+    setIsLoadingStatus(true);
+    try {
+      const supabase = createClient();
+      await supabase.from('orders').update({
+        deposit_paid: true,
+        deposit_paid_at: new Date().toISOString(),
+        status: 'deposit_paid'
+      }).eq('id', orderId);
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: 'deposit_paid',
+        message: 'Deposit payment confirmed. Your order is now being processed.',
+        updated_by: adminUser?.id,
+      }]);
+
+      setOrder({ ...order!, status: 'deposit_paid' as any, deposit_paid: true });
+      setStatusFeedback({ type: 'success', message: 'Deposit confirmed!' });
+
+      if (order?.client_id) {
+        await notifyOrgMembers({
+          orderId, clientId: order.client_id, type: 'order_status',
+          title: `Deposit Confirmed — Order #${order.order_number || orderId.slice(0, 8)}`,
+          body: 'Your deposit has been confirmed. We are now proceeding with your order.',
+          supabaseClient: supabase,
+        });
+      }
+    } catch (error: any) {
+      setStatusFeedback({ type: 'error', message: error.message || 'Failed to confirm deposit.' });
+    } finally {
+      setIsLoadingStatus(false);
+    }
+  };
 
   const handleStatusUpdate = async () => {
     if (!newStatus || !updateMessage.trim()) {
@@ -314,6 +444,9 @@ export default function AdminOrderDetailPage() {
   const handleRequestPayment = () =>
     handleQuickAction('action_required' as OrderStatus, 'Payment is required to proceed with your order. Please complete the payment at your earliest convenience.');
 
+  const handleStartSourcing = () =>
+    handleQuickAction('sourcing' as OrderStatus, 'We are now sourcing suppliers for your product. We will get back to you with pricing options shortly.');
+
   if (isLoading) {
     return (
       <AdminLayout>
@@ -427,6 +560,152 @@ export default function AdminOrderDetailPage() {
               </CardBody>
             </Card>
 
+            {/* Quote Submission Card */}
+            {(order.status === 'sourcing' || order.status === 'under_review' || order.status === 'quote_ready') && (
+              <Card className="border-2 border-blue-200 bg-blue-50">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-blue-600" />
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      {order.quote_submitted_at ? 'Quote Submitted' : 'Submit Quote'}
+                    </h2>
+                  </div>
+                </CardHeader>
+                <CardBody className="space-y-4">
+                  {quoteFeedback && (
+                    <div className={`p-3 rounded-lg border ${
+                      quoteFeedback.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
+                    }`}>
+                      <p className="text-sm">{quoteFeedback.message}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Air Freight Quote */}
+                    <div className="bg-white rounded-lg p-4 border border-blue-200">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Plane className="w-4 h-4 text-blue-600" />
+                        <h3 className="font-semibold text-gray-900">DDP Air Freight</h3>
+                      </div>
+                      <Input
+                        label="Price per Unit ($)"
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 4.50"
+                        value={quoteAirPrice}
+                        onChange={(e) => setQuoteAirPrice(e.target.value)}
+                      />
+                      <div className="mt-3">
+                        <Input
+                          label="Lead Time (business days)"
+                          type="number"
+                          placeholder="e.g. 14"
+                          value={quoteAirDays}
+                          onChange={(e) => setQuoteAirDays(e.target.value)}
+                        />
+                      </div>
+                      {quoteAirPrice && order.quantity > 0 && (
+                        <p className="text-sm text-blue-600 font-medium mt-2">
+                          Total: ${(parseFloat(quoteAirPrice || '0') * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Ocean Freight Quote */}
+                    <div className="bg-white rounded-lg p-4 border border-blue-200">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Ship className="w-4 h-4 text-blue-600" />
+                        <h3 className="font-semibold text-gray-900">DDP Ocean Freight</h3>
+                      </div>
+                      <Input
+                        label="Price per Unit ($)"
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 2.80"
+                        value={quoteOceanPrice}
+                        onChange={(e) => setQuoteOceanPrice(e.target.value)}
+                      />
+                      <div className="mt-3">
+                        <Input
+                          label="Lead Time (business days)"
+                          type="number"
+                          placeholder="e.g. 45"
+                          value={quoteOceanDays}
+                          onChange={(e) => setQuoteOceanDays(e.target.value)}
+                        />
+                      </div>
+                      {quoteOceanPrice && order.quantity > 0 && (
+                        <p className="text-sm text-blue-600 font-medium mt-2">
+                          Total: ${(parseFloat(quoteOceanPrice || '0') * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    onClick={handleSubmitQuote}
+                    isLoading={isSubmittingQuote}
+                    className="w-full"
+                  >
+                    {order.quote_submitted_at ? 'Update & Resubmit Quote' : 'Submit Quote to Client'}
+                  </Button>
+                </CardBody>
+              </Card>
+            )}
+
+            {/* Quote & Shipping Summary (visible after quote accepted) */}
+            {order.selected_shipping && (
+              <Card className="border border-green-200">
+                <CardBody>
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${order.selected_shipping === 'air' ? 'bg-blue-100' : 'bg-cyan-100'}`}>
+                      {order.selected_shipping === 'air' ? <Plane className="w-5 h-5 text-blue-600" /> : <Ship className="w-5 h-5 text-cyan-600" />}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        Client selected: DDP {order.selected_shipping === 'air' ? 'Air' : 'Ocean'} Freight
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        ${(order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit)?.toFixed(2)}/unit
+                        · {order.selected_shipping === 'air' ? order.quote_air_lead_days : order.quote_ocean_lead_days} business days
+                        · Total: ${((order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit) || 0 * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    {order.deposit_paid && (
+                      <Badge variant="success" className="ml-auto">
+                        <CheckCircle className="w-3 h-3 mr-1" /> Deposit Paid
+                      </Badge>
+                    )}
+                  </div>
+                </CardBody>
+              </Card>
+            )}
+
+            {/* Deposit Confirmation Card */}
+            {order.status === 'deposit_required' && (
+              <Card className="border-2 border-orange-200 bg-orange-50">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-orange-600" />
+                    <h2 className="text-lg font-semibold text-gray-900">Awaiting 30% Deposit</h2>
+                  </div>
+                </CardHeader>
+                <CardBody>
+                  <p className="text-sm text-gray-700 mb-3">
+                    The client has accepted the quote and needs to pay a 30% deposit of{' '}
+                    <span className="font-bold">${order.deposit_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span> to proceed.
+                  </p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Payment will be processed automatically via Stripe. You can also manually confirm if payment was received via wire.
+                  </p>
+                  <Button variant="primary" onClick={handleConfirmDeposit} isLoading={isLoadingStatus}>
+                    Manually Confirm Deposit Received
+                  </Button>
+                </CardBody>
+              </Card>
+            )}
+
             {/* Status Timeline */}
             <Card>
               <CardHeader>
@@ -494,7 +773,15 @@ export default function AdminOrderDetailPage() {
                 <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
               </CardHeader>
               <CardBody>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Button
+                    variant="secondary"
+                    onClick={handleStartSourcing}
+                    isLoading={isLoadingStatus}
+                    className="w-full"
+                  >
+                    Start Sourcing
+                  </Button>
                   <Button
                     variant="secondary"
                     onClick={handleRequestInfo}

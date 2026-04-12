@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Send, FileText, Paperclip, Truck, MapPin, Star } from 'lucide-react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { Send, FileText, Paperclip, Truck, MapPin, Star, Plane, Ship, DollarSign, CheckCircle, CreditCard } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody, CardHeader, CardFooter } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -25,7 +25,9 @@ const getStatusVariant = (status: string) => {
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const orderId = params.id as string;
+  const paymentStatus = searchParams.get('payment');
 
   const [user, setUser] = useState<User | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
@@ -38,6 +40,9 @@ export default function OrderDetailPage() {
   const [newMessage, setNewMessage] = useState('');
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [changesLoading, setChangesLoading] = useState(false);
+  const [selectedQuoteOption, setSelectedQuoteOption] = useState<'air' | 'ocean' | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -275,6 +280,82 @@ export default function OrderDetailPage() {
     }
   };
 
+  const handleSelectShipping = async () => {
+    if (!selectedQuoteOption || !user || !order) return;
+    setQuoteLoading(true);
+
+    try {
+      const supabase = createClient();
+      const pricePerUnit = selectedQuoteOption === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit;
+      const totalAmount = (pricePerUnit || 0) * order.quantity;
+      const depositAmount = totalAmount * 0.3;
+
+      await supabase.from('orders').update({
+        selected_shipping: selectedQuoteOption,
+        selected_shipping_at: new Date().toISOString(),
+        deposit_amount: depositAmount,
+        status: 'deposit_required',
+      }).eq('id', orderId);
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: 'deposit_required',
+        message: `Client selected DDP ${selectedQuoteOption === 'air' ? 'Air' : 'Ocean'} Freight at $${pricePerUnit?.toFixed(2)}/unit. 30% deposit of $${depositAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} required.`,
+        updated_by: user.id,
+      }]);
+
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: user.id,
+        sender_role: 'client',
+        message: `I'd like to go with the DDP ${selectedQuoteOption === 'air' ? 'Air' : 'Ocean'} Freight option at $${pricePerUnit?.toFixed(2)}/unit.`,
+        attachments: [],
+      }]);
+
+      setOrder({
+        ...order,
+        selected_shipping: selectedQuoteOption,
+        deposit_amount: depositAmount,
+        status: 'deposit_required' as any,
+      });
+    } catch (error) {
+      console.error('Error selecting shipping:', error);
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
+
+  const handlePayDeposit = async () => {
+    if (!order || !user) return;
+    setPaymentLoading(true);
+
+    try {
+      // Create Stripe checkout session via API
+      const res = await fetch('/api/stripe/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          orderNumber: order.order_number || order.id.slice(0, 8),
+          amount: order.deposit_amount,
+          customerEmail: user.email,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        console.error('No checkout URL returned:', data);
+      }
+    } catch (error) {
+      console.error('Error creating payment:', error);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
   return (
     <PortalLayout
       pageTitle={`Order #${order.order_number || order.id.slice(0, 8)}`}
@@ -284,6 +365,26 @@ export default function OrderDetailPage() {
       companyName={user?.company_name || ''}
     >
       <div className="space-y-6">
+        {/* Payment Status Banner */}
+        {paymentStatus === 'success' && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
+            <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-green-800">Payment Successful!</p>
+              <p className="text-sm text-green-700">Your deposit has been received. We&apos;ll begin processing your order right away.</p>
+            </div>
+          </div>
+        )}
+        {paymentStatus === 'cancelled' && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-center gap-3">
+            <DollarSign className="w-6 h-6 text-yellow-600 flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-yellow-800">Payment Cancelled</p>
+              <p className="text-sm text-yellow-700">You can complete the deposit payment at any time using the button below.</p>
+            </div>
+          </div>
+        )}
+
         {/* Order Header */}
         <Card>
           <CardBody>
@@ -503,6 +604,182 @@ export default function OrderDetailPage() {
                   </div>
                 )}
               </div>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Quote Review & Selection */}
+        {order.status === 'quote_ready' && order.quote_air_price_per_unit && order.quote_ocean_price_per_unit && (
+          <Card className="border-2 border-yellow-300 bg-yellow-50">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-yellow-600" />
+                <h2 className="text-lg font-bold text-gray-900">Your Quote is Ready</h2>
+              </div>
+              <p className="text-sm text-gray-600 mt-1">
+                We've sourced your product and have two shipping options. Please select your preferred option to proceed.
+              </p>
+            </CardHeader>
+            <CardBody>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Air Freight Option */}
+                <button
+                  onClick={() => setSelectedQuoteOption('air')}
+                  className={`text-left p-5 rounded-xl border-2 transition-all ${
+                    selectedQuoteOption === 'air'
+                      ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                      : 'border-gray-200 bg-white hover:border-blue-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Plane className="w-5 h-5 text-blue-600" />
+                    <h3 className="font-bold text-gray-900">DDP Air Freight</h3>
+                    {selectedQuoteOption === 'air' && <CheckCircle className="w-5 h-5 text-blue-500 ml-auto" />}
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Price per unit</span>
+                      <span className="font-bold text-gray-900">${order.quote_air_price_per_unit.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Lead time</span>
+                      <span className="font-semibold text-gray-900">{order.quote_air_lead_days} business days</span>
+                    </div>
+                    <div className="border-t border-gray-200 pt-2 mt-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Total ({order.quantity.toLocaleString()} units)</span>
+                        <span className="font-bold text-lg text-blue-600">
+                          ${(order.quote_air_price_per_unit * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* Ocean Freight Option */}
+                <button
+                  onClick={() => setSelectedQuoteOption('ocean')}
+                  className={`text-left p-5 rounded-xl border-2 transition-all ${
+                    selectedQuoteOption === 'ocean'
+                      ? 'border-cyan-500 bg-cyan-50 ring-2 ring-cyan-200'
+                      : 'border-gray-200 bg-white hover:border-cyan-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Ship className="w-5 h-5 text-cyan-600" />
+                    <h3 className="font-bold text-gray-900">DDP Ocean Freight</h3>
+                    {selectedQuoteOption === 'ocean' && <CheckCircle className="w-5 h-5 text-cyan-500 ml-auto" />}
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Price per unit</span>
+                      <span className="font-bold text-gray-900">${order.quote_ocean_price_per_unit.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Lead time</span>
+                      <span className="font-semibold text-gray-900">{order.quote_ocean_lead_days} business days</span>
+                    </div>
+                    <div className="border-t border-gray-200 pt-2 mt-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Total ({order.quantity.toLocaleString()} units)</span>
+                        <span className="font-bold text-lg text-cyan-600">
+                          ${(order.quote_ocean_price_per_unit * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {selectedQuoteOption && (
+                <div className="mt-4 p-4 bg-white rounded-lg border border-gray-200">
+                  <p className="text-sm text-gray-600 mb-3">
+                    After confirming, a <span className="font-bold">30% deposit</span> of{' '}
+                    <span className="font-bold text-gray-900">
+                      ${(((selectedQuoteOption === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit) || 0) * order.quantity * 0.3).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>{' '}
+                    will be required to proceed.
+                  </p>
+                  <Button
+                    variant="primary"
+                    onClick={handleSelectShipping}
+                    isLoading={quoteLoading}
+                    className="w-full"
+                  >
+                    Confirm {selectedQuoteOption === 'air' ? 'Air' : 'Ocean'} Freight
+                  </Button>
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Selected Quote Summary (visible after selection) */}
+        {order.selected_shipping && (
+          <Card className="border border-green-200">
+            <CardBody>
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${order.selected_shipping === 'air' ? 'bg-blue-100' : 'bg-cyan-100'}`}>
+                  {order.selected_shipping === 'air' ? <Plane className="w-5 h-5 text-blue-600" /> : <Ship className="w-5 h-5 text-cyan-600" />}
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900">
+                    DDP {order.selected_shipping === 'air' ? 'Air' : 'Ocean'} Freight Selected
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    ${(order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit)?.toFixed(2)}/unit
+                    · {order.selected_shipping === 'air' ? order.quote_air_lead_days : order.quote_ocean_lead_days} business days
+                  </p>
+                </div>
+                {order.deposit_paid && (
+                  <Badge variant="success">
+                    <CheckCircle className="w-3 h-3 mr-1" /> Deposit Paid
+                  </Badge>
+                )}
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Deposit Payment Required */}
+        {order.status === 'deposit_required' && order.deposit_amount && (
+          <Card className="border-2 border-orange-300 bg-orange-50">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-orange-600" />
+                <h2 className="text-lg font-bold text-gray-900">30% Deposit Required</h2>
+              </div>
+            </CardHeader>
+            <CardBody>
+              <div className="bg-white rounded-lg p-5 border border-orange-200 mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Order Total</span>
+                  <span className="font-semibold text-gray-900">
+                    ${(((order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit) || 0) * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center border-t border-gray-200 pt-2">
+                  <span className="font-semibold text-gray-900">30% Deposit Due</span>
+                  <span className="font-bold text-2xl text-orange-600">
+                    ${order.deposit_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">
+                Pay securely via credit card, ACH transfer, or wire transfer. Your order will be confirmed immediately upon payment.
+              </p>
+              <Button
+                variant="primary"
+                onClick={handlePayDeposit}
+                isLoading={paymentLoading}
+                className="w-full"
+              >
+                <CreditCard className="w-4 h-4 mr-2" />
+                Pay Deposit — ${order.deposit_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Button>
+              <p className="text-xs text-gray-400 text-center mt-2">
+                Powered by Stripe. Accepts credit card, ACH, and wire transfers.
+              </p>
             </CardBody>
           </Card>
         )}
