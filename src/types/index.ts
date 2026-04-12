@@ -95,3 +95,29 @@ export interface OrderSpecification {
   certifications: string[];
   additional_specs: Record<string, string>;
 }
+
+export interface DeliveryAddress {
+  id: string;
+  organization_id: string;
+  label: string;
+  address_line1: string;
+  address_line2: string;
+  city: string;
+  state: string;
+  zip_code: string;
+  country: string;
+  is_default: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderShipment {
+  id: string;
+  order_id: string;
+  delivery_address_id: string;
+  quantity: number;
+  notes: string;
+  created_at: string;
+  delivery_address?: DeliveryAddress;
+}

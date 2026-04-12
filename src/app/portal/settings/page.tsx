@@ -13,13 +13,42 @@ import {
   EyeOff,
   AlertCircle,
   CheckCircle,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Star,
 } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
+import { Badge } from '@/components/ui/Badge';
 import { createClient } from '@/lib/supabase';
+import { DeliveryAddress } from '@/types';
+
+interface AddressFormData {
+  label: string;
+  address_line1: string;
+  address_line2: string;
+  city: string;
+  state: string;
+  zip_code: string;
+  country: string;
+  is_default: boolean;
+}
+
+const emptyAddress: AddressFormData = {
+  label: '',
+  address_line1: '',
+  address_line2: '',
+  city: '',
+  state: '',
+  zip_code: '',
+  country: 'United States',
+  is_default: false,
+};
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -27,6 +56,7 @@ export default function SettingsPage() {
   const [userEmail, setUserEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [clientRole, setClientRole] = useState('');
+  const [organizationId, setOrganizationId] = useState('');
   const [loading, setLoading] = useState(true);
 
   // Profile edit state
@@ -46,10 +76,19 @@ export default function SettingsPage() {
   // Business info state (owner only)
   const [editCompanyName, setEditCompanyName] = useState('');
   const [businessAddress, setBusinessAddress] = useState('');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [businessSaving, setBusinessSaving] = useState(false);
   const [businessSuccess, setBusinessSuccess] = useState('');
   const [businessError, setBusinessError] = useState('');
+
+  // Delivery addresses state
+  const [addresses, setAddresses] = useState<DeliveryAddress[]>([]);
+  const [addressesLoading, setAddressesLoading] = useState(true);
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [addressForm, setAddressForm] = useState<AddressFormData>(emptyAddress);
+  const [addressSaving, setAddressSaving] = useState(false);
+  const [addressError, setAddressError] = useState('');
+  const [addressSuccess, setAddressSuccess] = useState('');
 
   useEffect(() => {
     const supabase = createClient();
@@ -72,10 +111,10 @@ export default function SettingsPage() {
         setUserEmail(user.email || '');
         setCompanyName(profile.company_name || '');
         setClientRole(profile.client_role || 'owner');
+        setOrganizationId(profile.organization_id || '');
         setEditName(profile.full_name || '');
         setEditCompanyName(profile.company_name || '');
         setBusinessAddress(profile.business_address || '');
-        setDeliveryAddress(profile.delivery_address || '');
       } else {
         setUserName(user.user_metadata?.full_name || user.email || '');
         setUserEmail(user.email || '');
@@ -84,6 +123,15 @@ export default function SettingsPage() {
         setEditCompanyName(user.user_metadata?.company_name || '');
       }
 
+      // Load delivery addresses
+      const { data: addressData } = await supabase
+        .from('delivery_addresses')
+        .select('*')
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: true });
+
+      setAddresses(addressData || []);
+      setAddressesLoading(false);
       setLoading(false);
     }
 
@@ -178,7 +226,6 @@ export default function SettingsPage() {
         .update({
           company_name: editCompanyName.trim(),
           business_address: businessAddress.trim(),
-          delivery_address: deliveryAddress.trim(),
         })
         .eq('id', user.id);
 
@@ -199,6 +246,165 @@ export default function SettingsPage() {
       setBusinessError('Failed to update business information.');
     } finally {
       setBusinessSaving(false);
+    }
+  };
+
+  const handleOpenAddressForm = (address?: DeliveryAddress) => {
+    if (address) {
+      setEditingAddressId(address.id);
+      setAddressForm({
+        label: address.label,
+        address_line1: address.address_line1,
+        address_line2: address.address_line2 || '',
+        city: address.city,
+        state: address.state,
+        zip_code: address.zip_code,
+        country: address.country,
+        is_default: address.is_default,
+      });
+    } else {
+      setEditingAddressId(null);
+      setAddressForm({ ...emptyAddress, is_default: addresses.length === 0 });
+    }
+    setShowAddressForm(true);
+    setAddressError('');
+  };
+
+  const handleCloseAddressForm = () => {
+    setShowAddressForm(false);
+    setEditingAddressId(null);
+    setAddressForm(emptyAddress);
+    setAddressError('');
+  };
+
+  const handleSaveAddress = async () => {
+    if (!addressForm.label.trim()) {
+      setAddressError('Address label is required (e.g., "Main Warehouse").');
+      return;
+    }
+    if (!addressForm.address_line1.trim()) {
+      setAddressError('Street address is required.');
+      return;
+    }
+    if (!addressForm.city.trim() || !addressForm.state.trim() || !addressForm.zip_code.trim()) {
+      setAddressError('City, state, and zip code are all required.');
+      return;
+    }
+
+    setAddressSaving(true);
+    setAddressError('');
+
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // If marking as default, unset other defaults first
+      if (addressForm.is_default) {
+        await supabase
+          .from('delivery_addresses')
+          .update({ is_default: false })
+          .eq('organization_id', organizationId);
+      }
+
+      if (editingAddressId) {
+        // Update existing
+        const { error } = await supabase
+          .from('delivery_addresses')
+          .update({
+            label: addressForm.label.trim(),
+            address_line1: addressForm.address_line1.trim(),
+            address_line2: addressForm.address_line2.trim(),
+            city: addressForm.city.trim(),
+            state: addressForm.state.trim(),
+            zip_code: addressForm.zip_code.trim(),
+            country: addressForm.country.trim(),
+            is_default: addressForm.is_default,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingAddressId);
+
+        if (error) throw error;
+      } else {
+        // Insert new
+        const { error } = await supabase
+          .from('delivery_addresses')
+          .insert({
+            organization_id: organizationId,
+            label: addressForm.label.trim(),
+            address_line1: addressForm.address_line1.trim(),
+            address_line2: addressForm.address_line2.trim(),
+            city: addressForm.city.trim(),
+            state: addressForm.state.trim(),
+            zip_code: addressForm.zip_code.trim(),
+            country: addressForm.country.trim(),
+            is_default: addressForm.is_default,
+            created_by: user.id,
+          });
+
+        if (error) throw error;
+      }
+
+      // Reload addresses
+      const { data: refreshed } = await supabase
+        .from('delivery_addresses')
+        .select('*')
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: true });
+
+      setAddresses(refreshed || []);
+      handleCloseAddressForm();
+      setAddressSuccess(editingAddressId ? 'Address updated.' : 'Address added.');
+      setTimeout(() => setAddressSuccess(''), 4000);
+    } catch (err: any) {
+      console.error('Error saving address:', err);
+      setAddressError('Failed to save address. Please try again.');
+    } finally {
+      setAddressSaving(false);
+    }
+  };
+
+  const handleDeleteAddress = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this delivery address?')) return;
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('delivery_addresses')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setAddresses((prev) => prev.filter((a) => a.id !== id));
+      setAddressSuccess('Address deleted.');
+      setTimeout(() => setAddressSuccess(''), 4000);
+    } catch (err: any) {
+      console.error('Error deleting address:', err);
+    }
+  };
+
+  const handleSetDefault = async (id: string) => {
+    try {
+      const supabase = createClient();
+
+      // Unset all defaults
+      await supabase
+        .from('delivery_addresses')
+        .update({ is_default: false })
+        .eq('organization_id', organizationId);
+
+      // Set new default
+      await supabase
+        .from('delivery_addresses')
+        .update({ is_default: true })
+        .eq('id', id);
+
+      setAddresses((prev) =>
+        prev.map((a) => ({ ...a, is_default: a.id === id }))
+      );
+    } catch (err) {
+      console.error('Error setting default:', err);
     }
   };
 
@@ -359,7 +565,7 @@ export default function SettingsPage() {
 
       {/* Business Information — Owner Only */}
       {clientRole === 'owner' && (
-        <Card>
+        <Card className="mb-8">
           <CardBody>
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
@@ -367,60 +573,38 @@ export default function SettingsPage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Business Information</h3>
-                <p className="text-sm text-gray-500">Manage your company details and addresses</p>
+                <p className="text-sm text-gray-500">Manage your company details</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <span className="flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5" />
-                      Business Name
-                    </span>
-                  </label>
-                  <Input
-                    value={editCompanyName}
-                    onChange={(e) => setEditCompanyName(e.target.value)}
-                    placeholder="Your company name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <span className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5" />
-                      Business Address
-                    </span>
-                  </label>
-                  <Textarea
-                    value={businessAddress}
-                    onChange={(e) => setBusinessAddress(e.target.value)}
-                    placeholder={"123 Main St, Suite 100\nCity, State 12345\nCountry"}
-                    rows={3}
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5" />
+                    Business Name
+                  </span>
+                </label>
+                <Input
+                  value={editCompanyName}
+                  onChange={(e) => setEditCompanyName(e.target.value)}
+                  placeholder="Your company name"
+                />
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <span className="flex items-center gap-1.5">
-                      <Truck className="w-3.5 h-3.5" />
-                      Delivery Address
-                    </span>
-                  </label>
-                  <Textarea
-                    value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                    placeholder={"Warehouse or delivery location\nCity, State 12345\nCountry"}
-                    rows={3}
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Default address where orders will be delivered
-                  </p>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5" />
+                    Business Address
+                  </span>
+                </label>
+                <Textarea
+                  value={businessAddress}
+                  onChange={(e) => setBusinessAddress(e.target.value)}
+                  placeholder={"123 Main St, Suite 100\nCity, State 12345\nCountry"}
+                  rows={3}
+                />
               </div>
             </div>
 
@@ -452,6 +636,238 @@ export default function SettingsPage() {
           </CardBody>
         </Card>
       )}
+
+      {/* Delivery Addresses Section */}
+      <Card>
+        <CardBody>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                <Truck className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delivery Addresses</h3>
+                <p className="text-sm text-gray-500">Manage warehouse and delivery locations for your orders</p>
+              </div>
+            </div>
+            {(clientRole === 'owner' || clientRole === 'manager') && !showAddressForm && (
+              <Button variant="primary" size="sm" onClick={() => handleOpenAddressForm()}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Address
+              </Button>
+            )}
+          </div>
+
+          {addressSuccess && (
+            <div className="text-sm text-green-600 bg-green-50 p-3 rounded-lg flex items-center gap-2 mb-4">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              {addressSuccess}
+            </div>
+          )}
+
+          {/* Add/Edit Address Form */}
+          {showAddressForm && (
+            <div className="border border-green-200 bg-green-50/30 rounded-xl p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-semibold text-gray-900">
+                  {editingAddressId ? 'Edit Address' : 'Add New Delivery Address'}
+                </h4>
+                <button onClick={handleCloseAddressForm} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Address Label *
+                  </label>
+                  <Input
+                    value={addressForm.label}
+                    onChange={(e) => setAddressForm((p) => ({ ...p, label: e.target.value }))}
+                    placeholder='e.g., "Main Warehouse", "East Coast DC", "HQ"'
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Street Address *
+                  </label>
+                  <Input
+                    value={addressForm.address_line1}
+                    onChange={(e) => setAddressForm((p) => ({ ...p, address_line1: e.target.value }))}
+                    placeholder="123 Warehouse Blvd"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Address Line 2
+                  </label>
+                  <Input
+                    value={addressForm.address_line2}
+                    onChange={(e) => setAddressForm((p) => ({ ...p, address_line2: e.target.value }))}
+                    placeholder="Suite, unit, building, floor, etc."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">City *</label>
+                  <Input
+                    value={addressForm.city}
+                    onChange={(e) => setAddressForm((p) => ({ ...p, city: e.target.value }))}
+                    placeholder="City"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">State *</label>
+                  <Input
+                    value={addressForm.state}
+                    onChange={(e) => setAddressForm((p) => ({ ...p, state: e.target.value }))}
+                    placeholder="State"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Zip Code *</label>
+                  <Input
+                    value={addressForm.zip_code}
+                    onChange={(e) => setAddressForm((p) => ({ ...p, zip_code: e.target.value }))}
+                    placeholder="12345"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                  <Input
+                    value={addressForm.country}
+                    onChange={(e) => setAddressForm((p) => ({ ...p, country: e.target.value }))}
+                    placeholder="United States"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={addressForm.is_default}
+                      onChange={(e) => setAddressForm((p) => ({ ...p, is_default: e.target.checked }))}
+                      className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                    />
+                    <span className="text-sm text-gray-700">Set as default delivery address</span>
+                  </label>
+                </div>
+              </div>
+
+              {addressError && (
+                <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg flex items-center gap-2 mt-4">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {addressError}
+                </div>
+              )}
+
+              <div className="flex gap-3 mt-4">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSaveAddress}
+                  disabled={addressSaving}
+                  isLoading={addressSaving}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {editingAddressId ? 'Update Address' : 'Save Address'}
+                </Button>
+                <Button variant="secondary" size="sm" onClick={handleCloseAddressForm}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Address List */}
+          {addressesLoading ? (
+            <div className="text-center py-8 text-gray-500">Loading addresses...</div>
+          ) : addresses.length === 0 && !showAddressForm ? (
+            <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
+              <Truck className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 mb-1">No delivery addresses yet</p>
+              <p className="text-sm text-gray-400 mb-4">
+                Add your warehouse or delivery locations to use when placing orders.
+              </p>
+              {(clientRole === 'owner' || clientRole === 'manager') && (
+                <Button variant="primary" size="sm" onClick={() => handleOpenAddressForm()}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Your First Address
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {addresses.map((addr) => (
+                <div
+                  key={addr.id}
+                  className={`border rounded-xl p-4 transition-colors ${
+                    addr.is_default ? 'border-green-300 bg-green-50/40' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-gray-900">{addr.label}</span>
+                        {addr.is_default && (
+                          <Badge variant="success">
+                            <Star className="w-3 h-3 mr-1" />
+                            Default
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {addr.address_line1}
+                        {addr.address_line2 ? `, ${addr.address_line2}` : ''}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {addr.city}, {addr.state} {addr.zip_code}
+                      </p>
+                      <p className="text-sm text-gray-500">{addr.country}</p>
+                    </div>
+
+                    {(clientRole === 'owner' || clientRole === 'manager') && (
+                      <div className="flex items-center gap-1 ml-4">
+                        {!addr.is_default && (
+                          <button
+                            onClick={() => handleSetDefault(addr.id)}
+                            className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            title="Set as default"
+                          >
+                            <Star className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleOpenAddressForm(addr)}
+                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        {clientRole === 'owner' && (
+                          <button
+                            onClick={() => handleDeleteAddress(addr.id)}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardBody>
+      </Card>
     </PortalLayout>
   );
 }

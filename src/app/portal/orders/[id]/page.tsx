@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Send, FileText, Paperclip } from 'lucide-react';
+import { Send, FileText, Paperclip, Truck, MapPin, Star } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody, CardHeader, CardFooter } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { StatusTimeline, TimelineStep } from '@/components/ui/StatusTimeline';
 import { createClient } from '@/lib/supabase';
 import { ORDER_STATUS_LABELS, ORDER_TIMELINE } from '@/lib/constants';
-import { Order, OrderUpdate, OrderMessage, OrderSpecification, User } from '@/types';
+import { Order, OrderUpdate, OrderMessage, OrderSpecification, User, OrderShipment, DeliveryAddress } from '@/types';
 
 const getStatusVariant = (status: string) => {
   if (['delivered', 'sample_approved'].includes(status)) return 'success';
@@ -32,6 +32,7 @@ export default function OrderDetailPage() {
   const [updates, setUpdates] = useState<OrderUpdate[]>([]);
   const [allMessages, setAllMessages] = useState<OrderMessage[]>([]);
   const [specifications, setSpecifications] = useState<OrderSpecification | null>(null);
+  const [shipments, setShipments] = useState<OrderShipment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [newMessage, setNewMessage] = useState('');
@@ -103,6 +104,19 @@ export default function OrderDetailPage() {
 
         if (specData) {
           setSpecifications(specData as OrderSpecification);
+        }
+
+        // Fetch shipments with delivery addresses
+        const { data: shipmentsData } = await supabase
+          .from('order_shipments')
+          .select('*, delivery_address:delivery_addresses(*)')
+          .eq('order_id', orderId);
+
+        if (shipmentsData) {
+          setShipments(shipmentsData.map((s: any) => ({
+            ...s,
+            delivery_address: s.delivery_address || undefined,
+          })));
         }
       } catch (error) {
         console.error('Error fetching order data:', error);
@@ -360,6 +374,84 @@ export default function OrderDetailPage() {
             </div>
           </CardBody>
         </Card>
+
+        {/* Delivery Information */}
+        {shipments.length > 0 && (
+          <Card>
+            <CardHeader>
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Truck className="w-5 h-5 text-green-600" />
+                Delivery Information
+              </h2>
+            </CardHeader>
+            <CardBody>
+              {shipments.length === 1 ? (
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <MapPin className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900">
+                      {shipments[0].delivery_address?.label || 'Delivery Address'}
+                    </p>
+                    {shipments[0].delivery_address && (
+                      <>
+                        <p className="text-sm text-gray-600">
+                          {shipments[0].delivery_address.address_line1}
+                          {shipments[0].delivery_address.address_line2 ? `, ${shipments[0].delivery_address.address_line2}` : ''}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {shipments[0].delivery_address.city}, {shipments[0].delivery_address.state} {shipments[0].delivery_address.zip_code}
+                        </p>
+                        <p className="text-sm text-gray-500">{shipments[0].delivery_address.country}</p>
+                      </>
+                    )}
+                    <p className="text-sm text-gray-500 mt-1">
+                      {shipments[0].quantity.toLocaleString()} units
+                    </p>
+                    {shipments[0].notes && (
+                      <p className="text-sm text-gray-400 mt-1">Note: {shipments[0].notes}</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-500 mb-2">
+                    This order is split across {shipments.length} delivery locations:
+                  </p>
+                  {shipments.map((shipment, idx) => (
+                    <div
+                      key={shipment.id}
+                      className="flex items-start gap-3 border border-gray-200 rounded-xl p-4"
+                    >
+                      <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
+                        <MapPin className="w-4 h-4 text-green-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="font-semibold text-gray-900 text-sm">
+                            {shipment.delivery_address?.label || `Shipment ${idx + 1}`}
+                          </p>
+                          <Badge variant="info">
+                            {shipment.quantity.toLocaleString()} units
+                          </Badge>
+                        </div>
+                        {shipment.delivery_address && (
+                          <p className="text-sm text-gray-600 mt-0.5">
+                            {shipment.delivery_address.address_line1}, {shipment.delivery_address.city}, {shipment.delivery_address.state} {shipment.delivery_address.zip_code}
+                          </p>
+                        )}
+                        {shipment.notes && (
+                          <p className="text-xs text-gray-400 mt-1">Note: {shipment.notes}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        )}
 
         {/* Specifications */}
         {specifications && (
