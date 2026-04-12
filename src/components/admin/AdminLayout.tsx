@@ -1,0 +1,129 @@
+'use client';
+
+import React, { useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import {
+  LayoutDashboard,
+  Package,
+  Users,
+  Settings,
+  ChevronDown,
+  LogOut,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/Badge';
+import { DEMO_ADMIN } from '@/lib/demo-data';
+
+interface AdminLayoutProps {
+  children: React.ReactNode;
+}
+
+export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
+  const pathname = usePathname();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
+  const navItems = [
+    {
+      label: 'Dashboard',
+      href: '/admin/dashboard',
+      icon: LayoutDashboard,
+    },
+    {
+      label: 'All Orders',
+      href: '/admin/orders',
+      icon: Package,
+    },
+    {
+      label: 'Clients',
+      href: '/admin/clients',
+      icon: Users,
+    },
+    {
+      label: 'Settings',
+      href: '/admin/settings',
+      icon: Settings,
+    },
+  ];
+
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
+
+  return (
+    <div className="flex h-screen bg-white">
+      {/* Sidebar */}
+      <div className="w-64 bg-gray-900 text-white flex flex-col border-r border-gray-800">
+        {/* Logo */}
+        <div className="px-6 py-6 border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="text-2xl font-bold">swaggy</div>
+            <Badge variant="neutral" className="bg-gray-700 text-gray-100">
+              Admin
+            </Badge>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 px-4 py-6 space-y-2">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  active
+                    ? 'bg-green-500 text-white'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                }`}
+              >
+                <Icon size={20} />
+                <span className="font-medium">{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Admin User Info */}
+        <div className="px-4 py-4 border-t border-gray-800">
+          <div className="relative">
+            <button
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors text-left"
+            >
+              <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center font-bold flex-shrink-0">
+                {DEMO_ADMIN.full_name.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-white truncate">
+                  {DEMO_ADMIN.full_name}
+                </div>
+                <div className="text-xs text-gray-400 truncate">
+                  {DEMO_ADMIN.email}
+                </div>
+              </div>
+              <ChevronDown size={16} className={`flex-shrink-0 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isUserMenuOpen && (
+              <div className="absolute bottom-full left-4 right-4 mb-2 bg-gray-800 rounded-lg border border-gray-700 py-2 z-50">
+                <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-auto bg-white">
+          <div className="p-8">
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
