@@ -2,13 +2,11 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { createClient } from '@/lib/supabase';
 
 export const SignupForm: React.FC = () => {
-  const router = useRouter();
   const supabase = createClient();
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -16,6 +14,7 @@ export const SignupForm: React.FC = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [showVerification, setShowVerification] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +22,6 @@ export const SignupForm: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Sign up the user
       const { error: signUpError, data } = await supabase.auth.signUp({
         email,
         password,
@@ -41,15 +39,57 @@ export const SignupForm: React.FC = () => {
         return;
       }
 
-      // If signup successful, redirect to dashboard
+      // Show verification notice instead of redirecting
       if (data.user) {
-        router.push('/portal/dashboard');
+        setShowVerification(true);
+        setIsLoading(false);
       }
     } catch (err) {
       setError('An unexpected error occurred');
       setIsLoading(false);
     }
   };
+
+  if (showVerification) {
+    return (
+      <div className="w-full max-w-md mx-auto">
+        <div className="space-y-6">
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">Check your email</h1>
+            <p className="mt-3 text-gray-600">
+              We&apos;ve sent a verification link to
+            </p>
+            <p className="mt-1 font-semibold text-gray-900">{email}</p>
+            <p className="mt-4 text-sm text-gray-500">
+              Click the link in the email to verify your account and get started. If you don&apos;t see it, check your spam folder.
+            </p>
+          </div>
+
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <p className="text-sm text-emerald-800 text-center">
+              Once verified, you can log in and start placing orders.
+            </p>
+          </div>
+
+          <div className="text-center">
+            <Link
+              href="/auth/login"
+              className="text-emerald-600 hover:text-emerald-700 font-medium text-sm"
+            >
+              Go to Log In
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -121,7 +161,7 @@ export const SignupForm: React.FC = () => {
         <div className="text-center text-sm">
           <span className="text-gray-600">Already have an account? </span>
           <Link
-            href="/login"
+            href="/auth/login"
             className="text-green-600 hover:text-green-700 font-medium"
           >
             Log in
