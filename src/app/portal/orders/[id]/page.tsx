@@ -642,8 +642,16 @@ export default function OrderDetailPage() {
                       <span className="font-bold text-gray-900">${order.quote_air_price_per_unit.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Lead time</span>
-                      <span className="font-semibold text-gray-900">{order.quote_air_lead_days} business days</span>
+                      <span className="text-sm text-gray-600">Production time</span>
+                      <span className="font-semibold text-gray-900">{order.quote_air_production_days} days</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Shipping time</span>
+                      <span className="font-semibold text-gray-900">{order.quote_air_shipping_days} days</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>Total lead time</span>
+                      <span>{order.quote_air_lead_days} days</span>
                     </div>
                     <div className="border-t border-gray-200 pt-2 mt-2">
                       <div className="flex justify-between">
@@ -676,8 +684,16 @@ export default function OrderDetailPage() {
                       <span className="font-bold text-gray-900">${order.quote_ocean_price_per_unit.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Lead time</span>
-                      <span className="font-semibold text-gray-900">{order.quote_ocean_lead_days} business days</span>
+                      <span className="text-sm text-gray-600">Production time</span>
+                      <span className="font-semibold text-gray-900">{order.quote_ocean_production_days} days</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Shipping time</span>
+                      <span className="font-semibold text-gray-900">{order.quote_ocean_shipping_days} days</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>Total lead time</span>
+                      <span>{order.quote_ocean_lead_days} days</span>
                     </div>
                     <div className="border-t border-gray-200 pt-2 mt-2">
                       <div className="flex justify-between">
@@ -728,7 +744,9 @@ export default function OrderDetailPage() {
                   </p>
                   <p className="text-sm text-gray-600">
                     ${(order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit)?.toFixed(2)}/unit
-                    · {order.selected_shipping === 'air' ? order.quote_air_lead_days : order.quote_ocean_lead_days} business days
+                    · Production: {order.selected_shipping === 'air' ? order.quote_air_production_days : order.quote_ocean_production_days}d
+                    · Shipping: {order.selected_shipping === 'air' ? order.quote_air_shipping_days : order.quote_ocean_shipping_days}d
+                    · Total: {order.selected_shipping === 'air' ? order.quote_air_lead_days : order.quote_ocean_lead_days} days
                   </p>
                 </div>
                 {order.deposit_paid && (

@@ -59,8 +59,12 @@ export interface Order {
   // Quote fields
   quote_air_price_per_unit?: number | null;
   quote_air_lead_days?: number | null;
+  quote_air_production_days?: number | null;
+  quote_air_shipping_days?: number | null;
   quote_ocean_price_per_unit?: number | null;
   quote_ocean_lead_days?: number | null;
+  quote_ocean_production_days?: number | null;
+  quote_ocean_shipping_days?: number | null;
   quote_submitted_at?: string | null;
   selected_shipping?: 'air' | 'ocean' | null;
   selected_shipping_at?: string | null;

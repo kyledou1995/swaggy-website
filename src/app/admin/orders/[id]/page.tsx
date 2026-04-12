@@ -128,22 +128,26 @@ export default function AdminOrderDetailPage() {
 
   // Quote form state
   const [quoteAirPrice, setQuoteAirPrice] = useState('');
-  const [quoteAirDays, setQuoteAirDays] = useState('');
+  const [quoteAirProductionDays, setQuoteAirProductionDays] = useState('');
+  const [quoteAirShippingDays, setQuoteAirShippingDays] = useState('');
   const [quoteOceanPrice, setQuoteOceanPrice] = useState('');
-  const [quoteOceanDays, setQuoteOceanDays] = useState('');
+  const [quoteOceanProductionDays, setQuoteOceanProductionDays] = useState('');
+  const [quoteOceanShippingDays, setQuoteOceanShippingDays] = useState('');
   const [isSubmittingQuote, setIsSubmittingQuote] = useState(false);
   const [quoteFeedback, setQuoteFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Pre-fill quote form if data exists
   useEffect(() => {
     if (order?.quote_air_price_per_unit) setQuoteAirPrice(String(order.quote_air_price_per_unit));
-    if (order?.quote_air_lead_days) setQuoteAirDays(String(order.quote_air_lead_days));
+    if (order?.quote_air_production_days) setQuoteAirProductionDays(String(order.quote_air_production_days));
+    if (order?.quote_air_shipping_days) setQuoteAirShippingDays(String(order.quote_air_shipping_days));
     if (order?.quote_ocean_price_per_unit) setQuoteOceanPrice(String(order.quote_ocean_price_per_unit));
-    if (order?.quote_ocean_lead_days) setQuoteOceanDays(String(order.quote_ocean_lead_days));
-  }, [order?.quote_air_price_per_unit, order?.quote_air_lead_days, order?.quote_ocean_price_per_unit, order?.quote_ocean_lead_days]);
+    if (order?.quote_ocean_production_days) setQuoteOceanProductionDays(String(order.quote_ocean_production_days));
+    if (order?.quote_ocean_shipping_days) setQuoteOceanShippingDays(String(order.quote_ocean_shipping_days));
+  }, [order?.quote_air_price_per_unit, order?.quote_air_production_days, order?.quote_air_shipping_days, order?.quote_ocean_price_per_unit, order?.quote_ocean_production_days, order?.quote_ocean_shipping_days]);
 
   const handleSubmitQuote = async () => {
-    if (!quoteAirPrice || !quoteAirDays || !quoteOceanPrice || !quoteOceanDays) {
+    if (!quoteAirPrice || !quoteAirProductionDays || !quoteAirShippingDays || !quoteOceanPrice || !quoteOceanProductionDays || !quoteOceanShippingDays) {
       setQuoteFeedback({ type: 'error', message: 'Please fill in all quote fields.' });
       return;
     }
@@ -158,9 +162,13 @@ export default function AdminOrderDetailPage() {
         .from('orders')
         .update({
           quote_air_price_per_unit: parseFloat(quoteAirPrice),
-          quote_air_lead_days: parseInt(quoteAirDays),
+          quote_air_lead_days: parseInt(quoteAirProductionDays) + parseInt(quoteAirShippingDays),
+          quote_air_production_days: parseInt(quoteAirProductionDays),
+          quote_air_shipping_days: parseInt(quoteAirShippingDays),
           quote_ocean_price_per_unit: parseFloat(quoteOceanPrice),
-          quote_ocean_lead_days: parseInt(quoteOceanDays),
+          quote_ocean_lead_days: parseInt(quoteOceanProductionDays) + parseInt(quoteOceanShippingDays),
+          quote_ocean_production_days: parseInt(quoteOceanProductionDays),
+          quote_ocean_shipping_days: parseInt(quoteOceanShippingDays),
           quote_submitted_at: new Date().toISOString(),
           status: 'quote_ready',
         })
@@ -172,7 +180,7 @@ export default function AdminOrderDetailPage() {
       await supabase.from('order_updates').insert([{
         order_id: orderId,
         status: 'quote_ready',
-        message: `Quote submitted: Air freight $${parseFloat(quoteAirPrice).toFixed(2)}/unit (${quoteAirDays} days) | Ocean freight $${parseFloat(quoteOceanPrice).toFixed(2)}/unit (${quoteOceanDays} days)`,
+        message: `Quote submitted: Air freight $${parseFloat(quoteAirPrice).toFixed(2)}/unit (${quoteAirProductionDays}d production + ${quoteAirShippingDays}d shipping) | Ocean freight $${parseFloat(quoteOceanPrice).toFixed(2)}/unit (${quoteOceanProductionDays}d production + ${quoteOceanShippingDays}d shipping)`,
         updated_by: adminUser?.id,
       }]);
 
@@ -181,16 +189,20 @@ export default function AdminOrderDetailPage() {
         order_id: orderId,
         sender_id: adminUser?.id,
         sender_role: 'admin',
-        message: `Your quote is ready! We've sourced your product and have two shipping options for you:\n\n✈️ Air Freight (DDP): $${parseFloat(quoteAirPrice).toFixed(2)}/unit — Est. ${quoteAirDays} business days\n🚢 Ocean Freight (DDP): $${parseFloat(quoteOceanPrice).toFixed(2)}/unit — Est. ${quoteOceanDays} business days\n\nPlease review and select your preferred option on your order page.`,
+        message: `Your quote is ready! We've sourced your product and have two shipping options for you:\n\n✈️ Air Freight (DDP): $${parseFloat(quoteAirPrice).toFixed(2)}/unit — Production: ${quoteAirProductionDays} days | Shipping: ${quoteAirShippingDays} days | Total: ${parseInt(quoteAirProductionDays) + parseInt(quoteAirShippingDays)} days\n🚢 Ocean Freight (DDP): $${parseFloat(quoteOceanPrice).toFixed(2)}/unit — Production: ${quoteOceanProductionDays} days | Shipping: ${quoteOceanShippingDays} days | Total: ${parseInt(quoteOceanProductionDays) + parseInt(quoteOceanShippingDays)} days\n\nPlease review and select your preferred option on your order page.`,
         attachments: [],
       }]);
 
       setOrder({ ...order!,
         status: 'quote_ready' as any,
         quote_air_price_per_unit: parseFloat(quoteAirPrice),
-        quote_air_lead_days: parseInt(quoteAirDays),
+        quote_air_lead_days: parseInt(quoteAirProductionDays) + parseInt(quoteAirShippingDays),
+        quote_air_production_days: parseInt(quoteAirProductionDays),
+        quote_air_shipping_days: parseInt(quoteAirShippingDays),
         quote_ocean_price_per_unit: parseFloat(quoteOceanPrice),
-        quote_ocean_lead_days: parseInt(quoteOceanDays),
+        quote_ocean_lead_days: parseInt(quoteOceanProductionDays) + parseInt(quoteOceanShippingDays),
+        quote_ocean_production_days: parseInt(quoteOceanProductionDays),
+        quote_ocean_shipping_days: parseInt(quoteOceanShippingDays),
         quote_submitted_at: new Date().toISOString(),
       });
       setQuoteFeedback({ type: 'success', message: 'Quote submitted and client notified!' });
@@ -597,13 +609,27 @@ export default function AdminOrderDetailPage() {
                       />
                       <div className="mt-3">
                         <Input
-                          label="Lead Time (business days)"
+                          label="Production Lead Time (days)"
                           type="number"
-                          placeholder="e.g. 14"
-                          value={quoteAirDays}
-                          onChange={(e) => setQuoteAirDays(e.target.value)}
+                          placeholder="e.g. 10"
+                          value={quoteAirProductionDays}
+                          onChange={(e) => setQuoteAirProductionDays(e.target.value)}
                         />
                       </div>
+                      <div className="mt-3">
+                        <Input
+                          label="Shipping Lead Time (days)"
+                          type="number"
+                          placeholder="e.g. 4"
+                          value={quoteAirShippingDays}
+                          onChange={(e) => setQuoteAirShippingDays(e.target.value)}
+                        />
+                      </div>
+                      {quoteAirProductionDays && quoteAirShippingDays && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Total lead time: {parseInt(quoteAirProductionDays || '0') + parseInt(quoteAirShippingDays || '0')} days
+                        </p>
+                      )}
                       {quoteAirPrice && order.quantity > 0 && (
                         <p className="text-sm text-blue-600 font-medium mt-2">
                           Total: ${(parseFloat(quoteAirPrice || '0') * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -627,13 +653,27 @@ export default function AdminOrderDetailPage() {
                       />
                       <div className="mt-3">
                         <Input
-                          label="Lead Time (business days)"
+                          label="Production Lead Time (days)"
                           type="number"
-                          placeholder="e.g. 45"
-                          value={quoteOceanDays}
-                          onChange={(e) => setQuoteOceanDays(e.target.value)}
+                          placeholder="e.g. 25"
+                          value={quoteOceanProductionDays}
+                          onChange={(e) => setQuoteOceanProductionDays(e.target.value)}
                         />
                       </div>
+                      <div className="mt-3">
+                        <Input
+                          label="Shipping Lead Time (days)"
+                          type="number"
+                          placeholder="e.g. 20"
+                          value={quoteOceanShippingDays}
+                          onChange={(e) => setQuoteOceanShippingDays(e.target.value)}
+                        />
+                      </div>
+                      {quoteOceanProductionDays && quoteOceanShippingDays && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Total lead time: {parseInt(quoteOceanProductionDays || '0') + parseInt(quoteOceanShippingDays || '0')} days
+                        </p>
+                      )}
                       {quoteOceanPrice && order.quantity > 0 && (
                         <p className="text-sm text-blue-600 font-medium mt-2">
                           Total: ${(parseFloat(quoteOceanPrice || '0') * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -668,8 +708,9 @@ export default function AdminOrderDetailPage() {
                       </p>
                       <p className="text-sm text-gray-600">
                         ${(order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit)?.toFixed(2)}/unit
-                        · {order.selected_shipping === 'air' ? order.quote_air_lead_days : order.quote_ocean_lead_days} business days
-                        · Total: ${((order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit) || 0 * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        · Production: {order.selected_shipping === 'air' ? order.quote_air_production_days : order.quote_ocean_production_days}d
+                        · Shipping: {order.selected_shipping === 'air' ? order.quote_air_shipping_days : order.quote_ocean_shipping_days}d
+                        · Total: {order.selected_shipping === 'air' ? order.quote_air_lead_days : order.quote_ocean_lead_days} days
                       </p>
                     </div>
                     {order.deposit_paid && (
