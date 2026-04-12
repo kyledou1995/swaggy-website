@@ -11,6 +11,8 @@ export const DEMO_USER: User = {
   parent_user_id: null,
   invited_by: null,
   invite_status: 'active',
+  business_address: '',
+  delivery_address: '',
   created_at: '2025-01-15T10:00:00Z',
 };
 
@@ -25,6 +27,8 @@ export const DEMO_ADMIN: User = {
   parent_user_id: null,
   invited_by: null,
   invite_status: 'active',
+  business_address: '',
+  delivery_address: '',
   created_at: '2024-01-01T00:00:00Z',
 };
 

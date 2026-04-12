@@ -34,6 +34,8 @@ export interface User {
   parent_user_id: string | null;
   invited_by: string | null;
   invite_status: InviteStatus;
+  business_address: string;
+  delivery_address: string;
   created_at: string;
 }
 
