@@ -41,6 +41,7 @@ export default function OrderDetailPage() {
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [changesLoading, setChangesLoading] = useState(false);
   const [selectedQuoteOption, setSelectedQuoteOption] = useState<'air' | 'ocean' | null>(null);
+  const [changingQuote, setChangingQuote] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
 
@@ -318,6 +319,7 @@ export default function OrderDetailPage() {
         deposit_amount: depositAmount,
         status: 'deposit_required' as any,
       });
+      setChangingQuote(false);
     } catch (error) {
       console.error('Error selecting shipping:', error);
     } finally {
@@ -609,7 +611,7 @@ export default function OrderDetailPage() {
         )}
 
         {/* Quote Review & Selection */}
-        {order.status === 'quote_ready' && order.quote_air_price_per_unit && order.quote_ocean_price_per_unit && (
+        {(order.status === 'quote_ready' || changingQuote) && order.quote_air_price_per_unit && order.quote_ocean_price_per_unit && (
           <Card className="border-2 border-yellow-300 bg-yellow-50">
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -730,8 +732,8 @@ export default function OrderDetailPage() {
           </Card>
         )}
 
-        {/* Selected Quote Summary (visible after selection) */}
-        {order.selected_shipping && (
+        {/* Selected Quote Summary (visible after selection, hidden while changing) */}
+        {order.selected_shipping && !changingQuote && (
           <Card className="border border-green-200">
             <CardBody>
               <div className="flex items-center gap-3">
@@ -749,10 +751,20 @@ export default function OrderDetailPage() {
                     · Total: {order.selected_shipping === 'air' ? order.quote_air_lead_days : order.quote_ocean_lead_days} days
                   </p>
                 </div>
-                {order.deposit_paid && (
+                {order.deposit_paid ? (
                   <Badge variant="success">
                     <CheckCircle className="w-3 h-3 mr-1" /> Deposit Paid
                   </Badge>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setSelectedQuoteOption(order.selected_shipping as 'air' | 'ocean');
+                      setChangingQuote(true);
+                    }}
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium underline underline-offset-2"
+                  >
+                    Change
+                  </button>
                 )}
               </div>
             </CardBody>
