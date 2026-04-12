@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Check } from 'lucide-react';
 
 export default function Pricing() {
@@ -104,15 +105,16 @@ export default function Pricing() {
                 </p>
 
                 {/* CTA Button */}
-                <button
-                  className={`w-full py-3 px-4 rounded-lg font-medium transition-colors mb-8 ${
+                <Link
+                  href="/auth/signup"
+                  className={`w-full py-3 px-4 rounded-lg font-medium transition-colors mb-8 text-center block ${
                     tier.highlighted
                       ? 'bg-emerald-500 text-white hover:bg-emerald-600'
                       : 'border-2 border-gray-300 text-gray-900 hover:bg-gray-50'
                   }`}
                 >
                   {tier.cta}
-                </button>
+                </Link>
 
                 {/* Features List */}
                 <div className="space-y-4">

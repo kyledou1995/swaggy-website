@@ -56,14 +56,17 @@ export default function Navbar() {
           {/* Right Section */}
           <div className="hidden md:flex items-center gap-4">
             <Link
-              href="/login"
+              href="/auth/login"
               className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
             >
               Log In
             </Link>
-            <button className="px-4 py-2 bg-emerald-500 text-white text-sm font-medium rounded-lg hover:bg-emerald-600 transition-colors">
+            <Link
+              href="/auth/signup"
+              className="px-4 py-2 bg-emerald-500 text-white text-sm font-medium rounded-lg hover:bg-emerald-600 transition-colors"
+            >
               Get Started
-            </button>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -91,15 +94,19 @@ export default function Navbar() {
               ))}
               <div className="flex flex-col gap-2 pt-2 border-t border-gray-200">
                 <Link
-                  href="/login"
+                  href="/auth/login"
                   className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
                   Log In
                 </Link>
-                <button className="w-full px-4 py-2 bg-emerald-500 text-white text-sm font-medium rounded-lg hover:bg-emerald-600 transition-colors">
+                <Link
+                  href="/auth/signup"
+                  className="w-full px-4 py-2 bg-emerald-500 text-white text-sm font-medium rounded-lg hover:bg-emerald-600 transition-colors text-center block"
+                  onClick={() => setIsOpen(false)}
+                >
                   Get Started
-                </button>
+                </Link>
               </div>
             </div>
           </div>

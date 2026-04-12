@@ -27,12 +27,18 @@ export default function Hero() {
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
-          <button className="px-8 py-3 bg-emerald-500 text-white font-medium rounded-lg hover:bg-emerald-600 transition-colors">
+          <Link
+            href="/auth/signup"
+            className="px-8 py-3 bg-emerald-500 text-white font-medium rounded-lg hover:bg-emerald-600 transition-colors"
+          >
             Start Your Order
-          </button>
-          <button className="px-8 py-3 border-2 border-gray-300 text-gray-900 font-medium rounded-lg hover:bg-gray-50 transition-colors">
+          </Link>
+          <Link
+            href="#how-it-works"
+            className="px-8 py-3 border-2 border-gray-300 text-gray-900 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+          >
             See How It Works
-          </button>
+          </Link>
         </div>
 
         {/* Optional: Metrics or Social Proof */}
