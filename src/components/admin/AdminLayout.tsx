@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Package,
   MessageSquare,
+  Users,
   ChevronDown,
   LogOut,
 } from 'lucide-react';
@@ -75,6 +76,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       label: 'Messages',
       href: '/admin/messages',
       icon: MessageSquare,
+    },
+    {
+      label: 'Users',
+      href: '/admin/users',
+      icon: Users,
     },
   ];
 
