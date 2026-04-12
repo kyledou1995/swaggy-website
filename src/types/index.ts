@@ -73,6 +73,10 @@ export interface Order {
   deposit_paid?: boolean;
   deposit_paid_at?: string | null;
   stripe_payment_intent_id?: string | null;
+  // Cancellation fields
+  cancellation_reason?: string | null;
+  cancelled_at?: string | null;
+  cancelled_by?: string | null;
 }
 
 export interface OrderUpdate {

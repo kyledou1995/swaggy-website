@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Send, FileText, AlertCircle, Plane, Ship, DollarSign, CheckCircle } from 'lucide-react';
+import { Send, FileText, AlertCircle, Plane, Ship, DollarSign, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardHeader, CardBody, CardFooter } from '@/components/ui/Card';
@@ -459,6 +459,115 @@ export default function AdminOrderDetailPage() {
   const handleStartSourcing = () =>
     handleQuickAction('sourcing' as OrderStatus, 'We are now sourcing suppliers for your product. We will get back to you with pricing options shortly.');
 
+  // Cancel order state and handler
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCancelOrder = async () => {
+    if (!cancelReason.trim()) {
+      setStatusFeedback({ type: 'error', message: 'Please provide a reason for cancellation.' });
+      return;
+    }
+
+    setIsCancelling(true);
+    setStatusFeedback(null);
+
+    try {
+      const supabase = createClient();
+
+      await supabase.from('orders').update({
+        status: 'cancelled',
+        cancellation_reason: cancelReason,
+        cancelled_at: new Date().toISOString(),
+        cancelled_by: adminUser?.id,
+      }).eq('id', orderId);
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: 'cancelled',
+        message: `Order cancelled. Reason: ${cancelReason}`,
+        updated_by: adminUser?.id,
+      }]);
+
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: adminUser?.id,
+        sender_role: 'admin',
+        message: `This order has been cancelled.\n\nReason: ${cancelReason}\n\nIf you have any questions, please reply to this message.`,
+        attachments: [],
+      }]);
+
+      if (order?.client_id) {
+        await notifyOrgMembers({
+          orderId,
+          clientId: order.client_id,
+          type: 'order_status',
+          title: `Order #${order?.order_number || orderId.slice(0, 8)} — Cancelled`,
+          body: `Your order has been cancelled. Reason: ${cancelReason}`,
+          supabaseClient: supabase,
+        });
+      }
+
+      setOrder({ ...order!, status: 'cancelled' as any, cancellation_reason: cancelReason, cancelled_at: new Date().toISOString() });
+      setShowCancelModal(false);
+      setCancelReason('');
+      setStatusFeedback({ type: 'success', message: 'Order has been cancelled.' });
+
+      // Refresh updates and messages
+      const { data: updatesData } = await supabase.from('order_updates').select('*').eq('order_id', orderId).order('created_at', { ascending: false });
+      setUpdates((updatesData as OrderUpdate[]) || []);
+      const { data: messagesData } = await supabase.from('order_messages').select('*').eq('order_id', orderId).order('created_at', { ascending: true });
+      setMessages((messagesData as OrderMessage[]) || []);
+    } catch (error: any) {
+      setStatusFeedback({ type: 'error', message: error.message || 'Failed to cancel order.' });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  // Reactivate a cancelled order
+  const handleReactivateOrder = async () => {
+    setIsLoadingStatus(true);
+    try {
+      const supabase = createClient();
+      await supabase.from('orders').update({
+        status: 'under_review',
+        cancellation_reason: null,
+        cancelled_at: null,
+        cancelled_by: null,
+      }).eq('id', orderId);
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: 'under_review',
+        message: 'Order has been reactivated and is now under review.',
+        updated_by: adminUser?.id,
+      }]);
+
+      if (order?.client_id) {
+        await notifyOrgMembers({
+          orderId,
+          clientId: order.client_id,
+          type: 'order_status',
+          title: `Order #${order?.order_number || orderId.slice(0, 8)} — Reactivated`,
+          body: 'Your order has been reactivated and is now under review.',
+          supabaseClient: supabase,
+        });
+      }
+
+      setOrder({ ...order!, status: 'under_review' as any, cancellation_reason: null, cancelled_at: null, cancelled_by: null });
+      setStatusFeedback({ type: 'success', message: 'Order has been reactivated.' });
+
+      const { data: updatesData } = await supabase.from('order_updates').select('*').eq('order_id', orderId).order('created_at', { ascending: false });
+      setUpdates((updatesData as OrderUpdate[]) || []);
+    } catch (error: any) {
+      setStatusFeedback({ type: 'error', message: error.message || 'Failed to reactivate order.' });
+    } finally {
+      setIsLoadingStatus(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <AdminLayout>
@@ -499,6 +608,8 @@ export default function AdminOrderDetailPage() {
                 variant={
                   order.status === 'delivered'
                     ? 'success'
+                    : order.status === 'cancelled'
+                    ? 'error'
                     : order.status === 'action_required'
                     ? 'error'
                     : order.status === 'sample_approval_pending'
@@ -519,6 +630,27 @@ export default function AdminOrderDetailPage() {
             </Button>
           </Link>
         </div>
+
+        {/* Cancelled Banner */}
+        {order.status === 'cancelled' && (
+          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-5">
+            <div className="flex items-start gap-3">
+              <XCircle className="w-6 h-6 text-red-500 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h3 className="font-bold text-red-800 text-lg">Order Cancelled</h3>
+                {order.cancellation_reason && (
+                  <p className="text-red-700 mt-1"><span className="font-medium">Reason:</span> {order.cancellation_reason}</p>
+                )}
+                {order.cancelled_at && (
+                  <p className="text-red-600 text-sm mt-1">Cancelled on {new Date(order.cancelled_at).toLocaleString()}</p>
+                )}
+              </div>
+              <Button variant="secondary" size="sm" onClick={handleReactivateOrder} isLoading={isLoadingStatus}>
+                Reactivate Order
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Order Details */}
@@ -782,10 +914,14 @@ export default function AdminOrderDetailPage() {
                 )}
                 <Select
                   label="Select New Status"
-                  options={ORDER_TIMELINE.map((status) => ({
-                    value: status,
-                    label: ORDER_STATUS_LABELS[status],
-                  }))}
+                  options={[
+                    ...ORDER_TIMELINE.map((status) => ({
+                      value: status,
+                      label: ORDER_STATUS_LABELS[status],
+                    })),
+                    { value: 'action_required', label: 'Action Required' },
+                    { value: 'cancelled', label: '⚠ Cancelled' },
+                  ]}
                   value={newStatus}
                   onChange={(e) => setNewStatus(e.target.value as OrderStatus)}
                 />
@@ -850,6 +986,61 @@ export default function AdminOrderDetailPage() {
                 </div>
               </CardBody>
             </Card>
+
+            {/* Cancel Order */}
+            {order.status !== 'cancelled' && (
+              <Card className="border border-red-200">
+                <CardBody>
+                  {!showCancelModal ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5 text-red-500" />
+                        <span className="text-sm text-gray-700">Need to cancel this order?</span>
+                      </div>
+                      <button
+                        onClick={() => setShowCancelModal(true)}
+                        className="text-sm text-red-600 hover:text-red-800 font-medium"
+                      >
+                        Cancel Order
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <XCircle className="w-5 h-5 text-red-500" />
+                        <h3 className="font-semibold text-red-800">Cancel Order</h3>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        This will cancel the order and notify the client. Please provide a reason for the cancellation.
+                      </p>
+                      <Textarea
+                        label="Cancellation Reason"
+                        placeholder="e.g. Product out of stock, pricing issue, client request..."
+                        value={cancelReason}
+                        onChange={(e) => setCancelReason(e.target.value)}
+                        rows={3}
+                      />
+                      <div className="flex gap-3">
+                        <Button
+                          variant="secondary"
+                          onClick={() => { setShowCancelModal(false); setCancelReason(''); }}
+                          className="flex-1"
+                        >
+                          Go Back
+                        </Button>
+                        <button
+                          onClick={handleCancelOrder}
+                          disabled={isCancelling || !cancelReason.trim()}
+                          className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {isCancelling ? 'Cancelling...' : 'Confirm Cancellation'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </CardBody>
+              </Card>
+            )}
 
             {/* Specifications */}
             {specification && (

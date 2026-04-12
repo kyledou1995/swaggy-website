@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Send, FileText, Paperclip, Truck, MapPin, Star, Plane, Ship, DollarSign, CheckCircle, CreditCard } from 'lucide-react';
+import { Send, FileText, Paperclip, Truck, MapPin, Star, Plane, Ship, DollarSign, CheckCircle, CreditCard, XCircle } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody, CardHeader, CardFooter } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -383,6 +383,23 @@ export default function OrderDetailPage() {
             <div>
               <p className="font-semibold text-yellow-800">Payment Cancelled</p>
               <p className="text-sm text-yellow-700">You can complete the deposit payment at any time using the button below.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Cancellation Banner */}
+        {order.status === 'cancelled' && (
+          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-5 flex items-start gap-3">
+            <XCircle className="w-6 h-6 text-red-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="font-bold text-red-800 text-lg">Order Cancelled</h3>
+              {order.cancellation_reason && (
+                <p className="text-red-700 mt-1"><span className="font-medium">Reason:</span> {order.cancellation_reason}</p>
+              )}
+              {order.cancelled_at && (
+                <p className="text-red-600 text-sm mt-1">Cancelled on {new Date(order.cancelled_at).toLocaleString()}</p>
+              )}
+              <p className="text-sm text-gray-600 mt-2">If you have questions about this cancellation, please use the message thread below.</p>
             </div>
           </div>
         )}
