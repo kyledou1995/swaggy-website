@@ -179,8 +179,9 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
               <ChevronDown className="w-4 h-4 text-gray-400 hidden sm:block" />
             </div>
 
-            {/* Dropdown Menu */}
-            <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+            {/* Dropdown Menu — pt-2 acts as invisible hover bridge */}
+            <div className="absolute right-0 top-full w-56 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 py-2">
               <div className="px-4 py-3 border-b border-gray-100">
                 <p className="text-sm font-semibold text-gray-900">{userName}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{userEmail}</p>
@@ -202,6 +203,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
                   Logout
                 </button>
               </div>
+            </div>
             </div>
           </div>
         </header>
