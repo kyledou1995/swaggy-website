@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useParams } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { Send, FileText, Paperclip } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody, CardHeader, CardFooter } from '@/components/ui/Card';
@@ -10,16 +10,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { StatusTimeline, TimelineStep } from '@/components/ui/StatusTimeline';
-import {
-  DEMO_ORDERS,
-  DEMO_UPDATES,
-  DEMO_MESSAGES,
-  DEMO_SPECIFICATIONS,
-  DEMO_USER,
-  DEMO_ADMIN,
-} from '@/lib/demo-data';
+import { createClient } from '@/lib/supabase';
 import { ORDER_STATUS_LABELS, ORDER_TIMELINE } from '@/lib/constants';
-import { Order } from '@/types';
+import { Order, OrderUpdate, OrderMessage, OrderSpecification, User } from '@/types';
 
 const getStatusVariant = (status: string) => {
   if (['delivered', 'sample_approved'].includes(status)) return 'success';
@@ -31,19 +24,109 @@ const getStatusVariant = (status: string) => {
 
 export default function OrderDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const orderId = params.id as string;
 
-  const order = DEMO_ORDERS.find((o) => o.id === orderId);
-  const updates = DEMO_UPDATES.filter((u) => u.order_id === orderId);
-  const messages = DEMO_MESSAGES.filter((m) => m.order_id === orderId);
-  const specifications = DEMO_SPECIFICATIONS.find(
-    (s) => s.order_id === orderId
-  );
+  const [user, setUser] = useState<User | null>(null);
+  const [order, setOrder] = useState<Order | null>(null);
+  const [updates, setUpdates] = useState<OrderUpdate[]>([]);
+  const [allMessages, setAllMessages] = useState<OrderMessage[]>([]);
+  const [specifications, setSpecifications] = useState<OrderSpecification | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [newMessage, setNewMessage] = useState('');
-  const [allMessages, setAllMessages] = useState(messages);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [changesLoading, setChangesLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const supabase = createClient();
+
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) {
+          router.push('/auth/login');
+          return;
+        }
+
+        // Fetch user profile
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .single();
+
+        if (profileData) {
+          setUser(profileData as User);
+        }
+
+        // Fetch order for this client
+        const { data: orderData, error: orderError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', orderId)
+          .eq('client_id', authUser.id)
+          .single();
+
+        if (orderError || !orderData) {
+          setOrder(null);
+          setIsLoading(false);
+          return;
+        }
+
+        setOrder(orderData as Order);
+
+        // Fetch updates
+        const { data: updatesData } = await supabase
+          .from('order_updates')
+          .select('*')
+          .eq('order_id', orderId)
+          .order('created_at', { ascending: false });
+
+        setUpdates((updatesData as OrderUpdate[]) || []);
+
+        // Fetch messages
+        const { data: messagesData } = await supabase
+          .from('order_messages')
+          .select('*')
+          .eq('order_id', orderId)
+          .order('created_at', { ascending: true });
+
+        setAllMessages((messagesData as OrderMessage[]) || []);
+
+        // Fetch specification
+        const { data: specData } = await supabase
+          .from('order_specifications')
+          .select('*')
+          .eq('order_id', orderId)
+          .single();
+
+        if (specData) {
+          setSpecifications(specData as OrderSpecification);
+        }
+      } catch (error) {
+        console.error('Error fetching order data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [orderId, router]);
+
+  if (isLoading) {
+    return (
+      <PortalLayout pageTitle="Loading...">
+        <Card>
+          <CardBody className="text-center py-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Loading order...
+            </h2>
+          </CardBody>
+        </Card>
+      </PortalLayout>
+    );
+  }
 
   if (!order) {
     return (
@@ -77,33 +160,39 @@ export default function OrderDetailPage() {
     };
   });
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim()) return;
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !user) return;
 
-    const newMsg = {
-      id: `msg_${allMessages.length + 1}`,
+    const supabase = createClient();
+    const newMsg: OrderMessage = {
+      id: `msg_${Date.now()}`,
       order_id: orderId,
-      sender_id: DEMO_USER.id,
-      sender_role: 'client' as const,
+      sender_id: user.id,
+      sender_role: 'client',
       message: newMessage,
       attachments: [],
       created_at: new Date().toISOString(),
     };
+
+    // In a real app, you would save this to Supabase
+    // await supabase.from('order_messages').insert([newMsg]);
 
     setAllMessages([...allMessages, newMsg]);
     setNewMessage('');
   };
 
   const handleApproval = async (approved: boolean) => {
+    if (!user) return;
+
     if (approved) {
       setApprovalLoading(true);
       setTimeout(() => {
         setApprovalLoading(false);
-        const response = {
-          id: `msg_${allMessages.length + 1}`,
+        const response: OrderMessage = {
+          id: `msg_${Date.now()}`,
           order_id: orderId,
-          sender_id: DEMO_USER.id,
-          sender_role: 'client' as const,
+          sender_id: user.id,
+          sender_role: 'client',
           message:
             'I approve the samples. Please proceed with manufacturing.',
           attachments: [],
@@ -122,9 +211,9 @@ export default function OrderDetailPage() {
   return (
     <PortalLayout
       pageTitle={`Order #${order.id.split('_')[1]}`}
-      userName={DEMO_USER.full_name}
-      userEmail={DEMO_USER.email}
-      companyName={DEMO_USER.company_name}
+      userName={user?.full_name || 'User'}
+      userEmail={user?.email || ''}
+      companyName={user?.company_name || ''}
     >
       <div className="space-y-6">
         {/* Order Header */}

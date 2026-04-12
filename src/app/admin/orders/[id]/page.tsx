@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Send, FileText, AlertCircle } from 'lucide-react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardHeader, CardBody, CardFooter } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -11,24 +11,25 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
 import { StatusTimeline } from '@/components/ui/StatusTimeline';
-import {
-  DEMO_ORDERS,
-  DEMO_UPDATES,
-  DEMO_MESSAGES,
-  DEMO_SPECIFICATIONS,
-  DEMO_ADMIN,
-} from '@/lib/demo-data';
+import { createClient } from '@/lib/supabase';
 import {
   ORDER_STATUS_LABELS,
   ORDER_TIMELINE,
   PRODUCT_TYPES,
 } from '@/lib/constants';
-import { OrderStatus } from '@/types';
+import { OrderStatus, Order, OrderUpdate, OrderMessage, OrderSpecification, User } from '@/types';
 import Link from 'next/link';
 
 export default function AdminOrderDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const orderId = params.id as string;
+
+  const [order, setOrder] = useState<Order | null>(null);
+  const [updates, setUpdates] = useState<OrderUpdate[]>([]);
+  const [messages, setMessages] = useState<OrderMessage[]>([]);
+  const [specification, setSpecification] = useState<OrderSpecification | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [newStatus, setNewStatus] = useState<OrderStatus | ''>('');
   const [updateMessage, setUpdateMessage] = useState('');
@@ -36,33 +37,69 @@ export default function AdminOrderDetailPage() {
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
   const [isLoadingMessage, setIsLoadingMessage] = useState(false);
 
-  const order = useMemo(
-    () => DEMO_ORDERS.find((o) => o.id === orderId),
-    [orderId]
-  );
+  useEffect(() => {
+    const fetchData = async () => {
+      const supabase = createClient();
 
-  const updates = useMemo(
-    () =>
-      DEMO_UPDATES.filter((u) => u.order_id === orderId).sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      ),
-    [orderId]
-  );
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          router.push('/auth/login');
+          return;
+        }
 
-  const messages = useMemo(
-    () =>
-      DEMO_MESSAGES.filter((m) => m.order_id === orderId).sort(
-        (a, b) =>
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      ),
-    [orderId]
-  );
+        // Fetch order
+        const { data: orderData, error: orderError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', orderId)
+          .single();
 
-  const specification = useMemo(
-    () => DEMO_SPECIFICATIONS.find((s) => s.order_id === orderId),
-    [orderId]
-  );
+        if (orderError || !orderData) {
+          setOrder(null);
+          setIsLoading(false);
+          return;
+        }
+
+        setOrder(orderData as Order);
+
+        // Fetch updates
+        const { data: updatesData } = await supabase
+          .from('order_updates')
+          .select('*')
+          .eq('order_id', orderId)
+          .order('created_at', { ascending: false });
+
+        setUpdates((updatesData as OrderUpdate[]) || []);
+
+        // Fetch messages
+        const { data: messagesData } = await supabase
+          .from('order_messages')
+          .select('*')
+          .eq('order_id', orderId)
+          .order('created_at', { ascending: true });
+
+        setMessages((messagesData as OrderMessage[]) || []);
+
+        // Fetch specification
+        const { data: specData } = await supabase
+          .from('order_specifications')
+          .select('*')
+          .eq('order_id', orderId)
+          .single();
+
+        if (specData) {
+          setSpecification(specData as OrderSpecification);
+        }
+      } catch (error) {
+        console.error('Error fetching order data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [orderId, router]);
 
   const currentStatusIndex = useMemo(
     () => (order ? ORDER_TIMELINE.indexOf(order.status) : -1),
@@ -128,6 +165,16 @@ export default function AdminOrderDetailPage() {
     setNewStatus('');
     setUpdateMessage('');
   };
+
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold text-gray-900">Loading order...</h2>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   if (!order) {
     return (
@@ -502,7 +549,7 @@ export default function AdminOrderDetailPage() {
                         <p className={`text-xs font-semibold mb-1 ${
                           isAdmin ? 'text-green-100' : 'text-gray-600'
                         }`}>
-                          {isAdmin ? DEMO_ADMIN.full_name : 'Client'}
+                          {isAdmin ? 'Admin' : 'Client'}
                         </p>
                         <p className="text-sm">{message.message}</p>
                         {message.attachments.length > 0 && (

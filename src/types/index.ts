@@ -31,6 +31,7 @@ export interface User {
 export interface Order {
   id: string;
   client_id: string;
+  order_number?: string;
   status: OrderStatus;
   product_type: string;
   product_description: string;

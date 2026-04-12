@@ -1,28 +1,28 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, TrendingUp } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, TrendingUp, Package, AlertCircle, CheckCircle } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
-import { Card, CardBody, CardHeader, CardFooter } from '@/components/ui/Card';
+import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { DEMO_ORDERS, DEMO_USER } from '@/lib/demo-data';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
+import { createClient } from '@/lib/supabase';
 import { Order } from '@/types';
 
 const getStatusVariant = (status: string) => {
   if (['delivered', 'sample_approved'].includes(status)) return 'success';
   if (['action_required', 'cancelled'].includes(status)) return 'error';
-  if (['sample_approval_pending', 'action_required'].includes(status))
-    return 'warning';
+  if (['sample_approval_pending'].includes(status)) return 'warning';
   return 'info';
 };
 
 const StatCard = ({
   title,
   value,
-  icon: Icon,
+  icon,
 }: {
   title: string;
   value: number;
@@ -36,7 +36,7 @@ const StatCard = ({
           <p className="text-3xl font-bold text-gray-900">{value}</p>
         </div>
         <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-          {Icon}
+          {icon}
         </div>
       </div>
     </CardBody>
@@ -44,43 +44,73 @@ const StatCard = ({
 );
 
 export default function DashboardPage() {
-  const totalOrders = DEMO_ORDERS.length;
-  const inProgressCount = DEMO_ORDERS.filter((o) =>
-    [
-      'submitted',
-      'under_review',
-      'sourcing',
-      'sample_production',
-      'sample_approval_pending',
-      'manufacturing',
-      'quality_check',
-      'packing',
-      'preparing_to_ship',
-      'in_transit',
-    ].includes(o.status)
-  ).length;
+  const router = useRouter();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const awaitingActionCount = DEMO_ORDERS.filter(
-    (o) => o.status === 'action_required'
-  ).length;
+  useEffect(() => {
+    const supabase = createClient();
 
-  const deliveredCount = DEMO_ORDERS.filter(
-    (o) => o.status === 'delivered'
-  ).length;
+    async function loadData() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/auth/login');
+        return;
+      }
 
-  const recentOrders = DEMO_ORDERS.slice(0, 5);
+      // Get profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (profile) {
+        setUserName(profile.full_name || user.email || '');
+        setUserEmail(user.email || '');
+        setCompanyName(profile.company_name || '');
+      } else {
+        setUserName(user.user_metadata?.full_name || user.email || '');
+        setUserEmail(user.email || '');
+        setCompanyName(user.user_metadata?.company_name || '');
+      }
+
+      // Get orders for this user
+      const { data: userOrders } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('client_id', user.id)
+        .order('created_at', { ascending: false });
+
+      setOrders(userOrders || []);
+      setLoading(false);
+    }
+
+    loadData();
+  }, [router]);
+
+  const totalOrders = orders.length;
+  const inProgressCount = orders.filter((o) =>
+    ['submitted', 'under_review', 'sourcing', 'sample_production', 'sample_approval_pending', 'manufacturing', 'quality_check', 'packing', 'preparing_to_ship', 'in_transit'].includes(o.status)
+  ).length;
+  const awaitingActionCount = orders.filter((o) => o.status === 'action_required').length;
+  const deliveredCount = orders.filter((o) => o.status === 'delivered').length;
+  const recentOrders = orders.slice(0, 5);
 
   return (
     <PortalLayout
       pageTitle="Dashboard"
-      userName={DEMO_USER.full_name}
-      userEmail={DEMO_USER.email}
-      companyName={DEMO_USER.company_name}
+      userName={userName}
+      userEmail={userEmail}
+      companyName={companyName}
     >
       {/* Welcome Section */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Welcome back, {DEMO_USER.full_name.split(' ')[0]}
+          Welcome back{userName ? `, ${userName.split(' ')[0]}` : ''}
         </h1>
         <p className="text-gray-600">
           Manage your orders and track their progress below.
@@ -89,26 +119,10 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          title="Total Orders"
-          value={totalOrders}
-          icon={<TrendingUp className="w-6 h-6 text-green-600" />}
-        />
-        <StatCard
-          title="In Progress"
-          value={inProgressCount}
-          icon={<TrendingUp className="w-6 h-6 text-green-600" />}
-        />
-        <StatCard
-          title="Awaiting Action"
-          value={awaitingActionCount}
-          icon={<TrendingUp className="w-6 h-6 text-green-600" />}
-        />
-        <StatCard
-          title="Delivered"
-          value={deliveredCount}
-          icon={<TrendingUp className="w-6 h-6 text-green-600" />}
-        />
+        <StatCard title="Total Orders" value={totalOrders} icon={<Package className="w-6 h-6 text-green-600" />} />
+        <StatCard title="In Progress" value={inProgressCount} icon={<TrendingUp className="w-6 h-6 text-green-600" />} />
+        <StatCard title="Awaiting Action" value={awaitingActionCount} icon={<AlertCircle className="w-6 h-6 text-green-600" />} />
+        <StatCard title="Delivered" value={deliveredCount} icon={<CheckCircle className="w-6 h-6 text-green-600" />} />
       </div>
 
       {/* Recent Orders */}
@@ -124,68 +138,61 @@ export default function DashboardPage() {
         </div>
 
         <Card>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                    Order #
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                    Product
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                    Quantity
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                    Date
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentOrders.map((order: Order) => (
-                  <tr
-                    key={order.id}
-                    className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                      #{order.id.split('_')[1]}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">
-                      {order.product_type}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700">
-                      {order.quantity.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge
-                        variant={getStatusVariant(order.status) as any}
-                        size="sm"
-                      >
-                        {ORDER_STATUS_LABELS[order.status]}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {new Date(order.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <Link href={`/portal/orders/${order.id}`}>
-                        <Button variant="ghost" size="sm">
-                          View
-                        </Button>
-                      </Link>
-                    </td>
+          {loading ? (
+            <CardBody>
+              <div className="text-center py-8 text-gray-500">Loading orders...</div>
+            </CardBody>
+          ) : recentOrders.length === 0 ? (
+            <CardBody>
+              <div className="text-center py-12">
+                <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders yet</h3>
+                <p className="text-gray-600 mb-6">Create your first order to get started.</p>
+                <Link href="/portal/orders/new">
+                  <Button variant="primary">Create Your First Order</Button>
+                </Link>
+              </div>
+            </CardBody>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Order #</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Product</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Quantity</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Status</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Date</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {recentOrders.map((order: Order) => (
+                    <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                        {order.order_number || order.id.substring(0, 8)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">{order.product_type}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700">{order.quantity.toLocaleString()}</td>
+                      <td className="px-6 py-4">
+                        <Badge variant={getStatusVariant(order.status) as any} size="sm">
+                          {ORDER_STATUS_LABELS[order.status] || order.status}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {new Date(order.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4">
+                        <Link href={`/portal/orders/${order.id}`}>
+                          <Button variant="ghost" size="sm">View</Button>
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       </div>
 

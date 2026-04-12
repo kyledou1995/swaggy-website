@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody, CardHeader, CardFooter } from '@/components/ui/Card';
@@ -9,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
-import { DEMO_USER } from '@/lib/demo-data';
+import { createClient } from '@/lib/supabase';
 import { PRODUCT_TYPES } from '@/lib/constants';
 
 interface NewOrderFormData {
@@ -28,9 +29,35 @@ const STEPS = [
 ];
 
 export default function NewOrderPage() {
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [showSuccess, setShowSuccess] = useState(false);
   const [generatedOrderId, setGeneratedOrderId] = useState<string>('');
+  const [submitting, setSubmitting] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [userId, setUserId] = useState('');
+
+  useEffect(() => {
+    const supabase = createClient();
+    async function loadUser() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push('/auth/login'); return; }
+      setUserId(user.id);
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      if (profile) {
+        setUserName(profile.full_name || user.email || '');
+        setUserEmail(user.email || '');
+        setCompanyName(profile.company_name || '');
+      } else {
+        setUserName(user.user_metadata?.full_name || user.email || '');
+        setUserEmail(user.email || '');
+        setCompanyName(user.user_metadata?.company_name || '');
+      }
+    }
+    loadUser();
+  }, [router]);
 
   const [formData, setFormData] = useState<NewOrderFormData>({
     productType: '',
@@ -109,34 +136,52 @@ export default function NewOrderPage() {
     }
   };
 
-  const handleSubmit = () => {
-    // Generate order ID
-    const orderId = `order_${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
-    setGeneratedOrderId(orderId);
-    setShowSuccess(true);
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const supabase = createClient();
+      const orderNumber = `ORD-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
 
-    // Reset form after 5 seconds
-    setTimeout(() => {
-      setCurrentStep(1);
-      setFormData({
-        productType: '',
-        quantity: '',
-        targetPrice: '',
-        targetDeliveryDate: '',
-        productDescription: '',
-        specificRequirements: '',
-      });
-      setShowSuccess(false);
-    }, 5000);
+      const { data, error } = await supabase
+        .from('orders')
+        .insert({
+          client_id: userId,
+          order_number: orderNumber,
+          status: 'submitted',
+          product_type: formData.productType,
+          product_description: formData.productDescription,
+          quantity: parseInt(formData.quantity),
+          target_price: parseFloat(formData.targetPrice),
+          target_delivery_date: formData.targetDeliveryDate,
+          notes: formData.specificRequirements || '',
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating order:', error);
+        alert('Failed to create order. Please try again.');
+        setSubmitting(false);
+        return;
+      }
+
+      setGeneratedOrderId(orderNumber);
+      setShowSuccess(true);
+      setSubmitting(false);
+    } catch (err) {
+      console.error('Error:', err);
+      alert('An unexpected error occurred. Please try again.');
+      setSubmitting(false);
+    }
   };
 
   if (showSuccess) {
     return (
       <PortalLayout
         pageTitle="New Order"
-        userName={DEMO_USER.full_name}
-        userEmail={DEMO_USER.email}
-        companyName={DEMO_USER.company_name}
+        userName={userName}
+        userEmail={userEmail}
+        companyName={companyName}
       >
         <div className="max-w-2xl mx-auto">
           <Card>
@@ -177,9 +222,9 @@ export default function NewOrderPage() {
   return (
     <PortalLayout
       pageTitle="New Order"
-      userName={DEMO_USER.full_name}
-      userEmail={DEMO_USER.email}
-      companyName={DEMO_USER.company_name}
+      userName={userName}
+      userEmail={userEmail}
+      companyName={companyName}
     >
       <div className="max-w-2xl mx-auto">
         {/* Step Indicator */}
@@ -390,9 +435,9 @@ export default function NewOrderPage() {
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               ) : (
-                <Button variant="primary" onClick={handleSubmit}>
+                <Button variant="primary" onClick={handleSubmit} disabled={submitting}>
                   <CheckCircle className="w-4 h-4 mr-2" />
-                  Submit Order
+                  {submitting ? 'Submitting...' : 'Submit Order'}
                 </Button>
               )}
             </div>

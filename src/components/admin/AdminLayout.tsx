@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Package,
@@ -12,7 +12,8 @@ import {
   LogOut,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
-import { DEMO_ADMIN } from '@/lib/demo-data';
+import { createClient } from '@/lib/supabase';
+import { User } from '@/types';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -20,7 +21,41 @@ interface AdminLayoutProps {
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const pathname = usePathname();
+  const router = useRouter();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const supabase = createClient();
+
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) {
+          router.push('/auth/login');
+          return;
+        }
+
+        // Fetch user profile
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .single();
+
+        if (profileData) {
+          setUser(profileData as User);
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, [router]);
 
   const navItems = [
     {
@@ -84,36 +119,38 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         </nav>
 
         {/* Admin User Info */}
-        <div className="px-4 py-4 border-t border-gray-800">
-          <div className="relative">
-            <button
-              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors text-left"
-            >
-              <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center font-bold flex-shrink-0">
-                {DEMO_ADMIN.full_name.charAt(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-white truncate">
-                  {DEMO_ADMIN.full_name}
+        {!isLoading && user && (
+          <div className="px-4 py-4 border-t border-gray-800">
+            <div className="relative">
+              <button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-800 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center font-bold flex-shrink-0">
+                  {user.full_name.charAt(0)}
                 </div>
-                <div className="text-xs text-gray-400 truncate">
-                  {DEMO_ADMIN.email}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-white truncate">
+                    {user.full_name}
+                  </div>
+                  <div className="text-xs text-gray-400 truncate">
+                    {user.email}
+                  </div>
                 </div>
-              </div>
-              <ChevronDown size={16} className={`flex-shrink-0 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
+                <ChevronDown size={16} className={`flex-shrink-0 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-            {isUserMenuOpen && (
-              <div className="absolute bottom-full left-4 right-4 mb-2 bg-gray-800 rounded-lg border border-gray-700 py-2 z-50">
-                <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
-                  <LogOut size={16} />
-                  Logout
-                </button>
-              </div>
-            )}
+              {isUserMenuOpen && (
+                <div className="absolute bottom-full left-4 right-4 mb-2 bg-gray-800 rounded-lg border border-gray-700 py-2 z-50">
+                  <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
+                    <LogOut size={16} />
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Main Content */}
