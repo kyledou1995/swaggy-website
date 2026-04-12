@@ -8,6 +8,7 @@ import {
   Package,
   MessageSquare,
   Users,
+  Building2,
   ChevronDown,
   LogOut,
 } from 'lucide-react';
@@ -66,6 +67,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       label: 'Dashboard',
       href: '/admin/dashboard',
       icon: LayoutDashboard,
+    },
+    {
+      label: 'Clients',
+      href: '/admin/clients',
+      icon: Building2,
     },
     {
       label: 'All Orders',
