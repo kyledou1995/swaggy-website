@@ -2,12 +2,12 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase';
 import {
   LayoutDashboard,
   ShoppingCart,
   Plus,
-  MessageSquare,
   Menu,
   X,
   LogOut,
@@ -39,11 +39,6 @@ const NAV_LINKS = [
     href: '/portal/orders/new',
     icon: Plus,
   },
-  {
-    label: 'Messages',
-    href: '/portal/messages',
-    icon: MessageSquare,
-  },
 ];
 
 export const PortalLayout: React.FC<PortalLayoutProps> = ({
@@ -55,6 +50,13 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/auth/login');
+  };
 
   const isActive = (href: string) => pathname === href;
 
@@ -117,6 +119,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
             variant="ghost"
             size="sm"
             className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={handleLogout}
           >
             <LogOut className="w-4 h-4 mr-2" />
             Logout

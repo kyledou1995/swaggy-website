@@ -174,8 +174,18 @@ export default function OrderDetailPage() {
       created_at: new Date().toISOString(),
     };
 
-    // In a real app, you would save this to Supabase
-    // await supabase.from('order_messages').insert([newMsg]);
+    const { error } = await supabase.from('order_messages').insert([{
+      order_id: orderId,
+      sender_id: user.id,
+      sender_role: 'client',
+      message: newMessage,
+      attachments: [],
+    }]);
+
+    if (error) {
+      console.error('Error sending message:', error);
+      return;
+    }
 
     setAllMessages([...allMessages, newMsg]);
     setNewMessage('');
@@ -183,34 +193,77 @@ export default function OrderDetailPage() {
 
   const handleApproval = async (approved: boolean) => {
     if (!user) return;
+    const supabase = createClient();
 
     if (approved) {
       setApprovalLoading(true);
-      setTimeout(() => {
-        setApprovalLoading(false);
+      try {
+        // Update order status to sample_approved
+        await supabase
+          .from('orders')
+          .update({ status: 'sample_approved' })
+          .eq('id', orderId);
+
+        // Add an update record
+        await supabase.from('order_updates').insert([{
+          order_id: orderId,
+          status: 'sample_approved',
+          message: 'Client approved the samples.',
+          updated_by: user.id,
+        }]);
+
+        // Send approval message
+        const approvalMsg = 'I approve the samples. Please proceed with manufacturing.';
+        await supabase.from('order_messages').insert([{
+          order_id: orderId,
+          sender_id: user.id,
+          sender_role: 'client',
+          message: approvalMsg,
+          attachments: [],
+        }]);
+
         const response: OrderMessage = {
           id: `msg_${Date.now()}`,
           order_id: orderId,
           sender_id: user.id,
           sender_role: 'client',
-          message:
-            'I approve the samples. Please proceed with manufacturing.',
+          message: approvalMsg,
           attachments: [],
           created_at: new Date().toISOString(),
         };
         setAllMessages([...allMessages, response]);
-      }, 1000);
+        setOrder({ ...order!, status: 'sample_approved' });
+      } catch (error) {
+        console.error('Error approving sample:', error);
+      } finally {
+        setApprovalLoading(false);
+      }
     } else {
       setChangesLoading(true);
-      setTimeout(() => {
+      try {
+        // Update order status to action_required
+        await supabase
+          .from('orders')
+          .update({ status: 'action_required' })
+          .eq('id', orderId);
+
+        await supabase.from('order_updates').insert([{
+          order_id: orderId,
+          status: 'action_required',
+          message: 'Client requested changes to samples.',
+          updated_by: user.id,
+        }]);
+      } catch (error) {
+        console.error('Error requesting changes:', error);
+      } finally {
         setChangesLoading(false);
-      }, 1000);
+      }
     }
   };
 
   return (
     <PortalLayout
-      pageTitle={`Order #${order.id.split('_')[1]}`}
+      pageTitle={`Order #${order.order_number || order.id.slice(0, 8)}`}
       userName={user?.full_name || 'User'}
       userEmail={user?.email || ''}
       companyName={user?.company_name || ''}
@@ -222,7 +275,7 @@ export default function OrderDetailPage() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                  Order #{order.id.split('_')[1]}
+                  Order #{order.order_number || order.id.slice(0, 8)}
                 </h1>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant={getStatusVariant(order.status) as any}>

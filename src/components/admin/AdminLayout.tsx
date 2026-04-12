@@ -6,8 +6,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Package,
-  Users,
-  Settings,
   ChevronDown,
   LogOut,
 } from 'lucide-react';
@@ -45,6 +43,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           .single();
 
         if (profileData) {
+          if (profileData.role !== 'admin') {
+            router.push('/portal/dashboard');
+            return;
+          }
           setUser(profileData as User);
         }
       } catch (error) {
@@ -68,19 +70,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       href: '/admin/orders',
       icon: Package,
     },
-    {
-      label: 'Clients',
-      href: '/admin/clients',
-      icon: Users,
-    },
-    {
-      label: 'Settings',
-      href: '/admin/settings',
-      icon: Settings,
-    },
   ];
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/auth/login');
+  };
 
   return (
     <div className="flex h-screen bg-white">
@@ -142,7 +140,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
               {isUserMenuOpen && (
                 <div className="absolute bottom-full left-4 right-4 mb-2 bg-gray-800 rounded-lg border border-gray-700 py-2 z-50">
-                  <button className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
+                  >
                     <LogOut size={16} />
                     Logout
                   </button>

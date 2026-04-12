@@ -36,17 +36,20 @@ export default function AdminOrderDetailPage() {
   const [messageText, setMessageText] = useState('');
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
   const [isLoadingMessage, setIsLoadingMessage] = useState(false);
+  const [client, setClient] = useState<User | null>(null);
+  const [adminUser, setAdminUser] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClient();
 
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) {
           router.push('/auth/login');
           return;
         }
+        setAdminUser({ id: authUser.id });
 
         // Fetch order
         const { data: orderData, error: orderError } = await supabase
@@ -62,6 +65,19 @@ export default function AdminOrderDetailPage() {
         }
 
         setOrder(orderData as Order);
+
+        // Fetch client profile
+        if (orderData.client_id) {
+          const { data: clientData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', orderData.client_id)
+            .single();
+
+          if (clientData) {
+            setClient(clientData as User);
+          }
+        }
 
         // Fetch updates
         const { data: updatesData } = await supabase
@@ -106,65 +122,160 @@ export default function AdminOrderDetailPage() {
     [order]
   );
 
+  const [statusFeedback, setStatusFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [messageFeedback, setMessageFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const handleStatusUpdate = async () => {
     if (!newStatus || !updateMessage.trim()) {
-      alert('Please select a status and enter a message');
+      setStatusFeedback({ type: 'error', message: 'Please select a status and enter a message.' });
       return;
     }
 
     setIsLoadingStatus(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    setIsLoadingStatus(false);
+    setStatusFeedback(null);
 
-    alert(
-      `Status updated to "${ORDER_STATUS_LABELS[newStatus]}" with message: "${updateMessage}"`
-    );
-    setNewStatus('');
-    setUpdateMessage('');
+    try {
+      const supabase = createClient();
+
+      // Update order status
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+
+      if (orderError) throw orderError;
+
+      // Create update record
+      const { error: updateError } = await supabase
+        .from('order_updates')
+        .insert([{
+          order_id: orderId,
+          status: newStatus,
+          message: updateMessage,
+          updated_by: adminUser?.id,
+        }]);
+
+      if (updateError) throw updateError;
+
+      setOrder({ ...order!, status: newStatus });
+      setStatusFeedback({ type: 'success', message: `Status updated to "${ORDER_STATUS_LABELS[newStatus]}"` });
+      setNewStatus('');
+      setUpdateMessage('');
+
+      // Refresh updates
+      const { data: updatesData } = await supabase
+        .from('order_updates')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false });
+      setUpdates((updatesData as OrderUpdate[]) || []);
+    } catch (error: any) {
+      setStatusFeedback({ type: 'error', message: error.message || 'Failed to update status' });
+    } finally {
+      setIsLoadingStatus(false);
+    }
   };
 
   const handleSendMessage = async () => {
     if (!messageText.trim()) return;
 
     setIsLoadingMessage(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    setIsLoadingMessage(false);
+    setMessageFeedback(null);
 
-    alert(`Message sent: "${messageText}"`);
-    setMessageText('');
+    try {
+      const supabase = createClient();
+
+      const { error } = await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: adminUser?.id,
+        sender_role: 'admin',
+        message: messageText,
+        attachments: [],
+      }]);
+
+      if (error) throw error;
+
+      // Add to local state
+      const newMsg: OrderMessage = {
+        id: `msg_${Date.now()}`,
+        order_id: orderId,
+        sender_id: adminUser?.id || '',
+        sender_role: 'admin',
+        message: messageText,
+        attachments: [],
+        created_at: new Date().toISOString(),
+      };
+      setMessages([...messages, newMsg]);
+      setMessageText('');
+    } catch (error: any) {
+      setMessageFeedback({ type: 'error', message: error.message || 'Failed to send message' });
+    } finally {
+      setIsLoadingMessage(false);
+    }
   };
 
-  const handleRequestInfo = async () => {
+  const handleQuickAction = async (actionStatus: OrderStatus, actionMessage: string) => {
     setIsLoadingStatus(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    setIsLoadingStatus(false);
+    setStatusFeedback(null);
 
-    alert('Information request sent to client');
-    setNewStatus('');
-    setUpdateMessage('');
+    try {
+      const supabase = createClient();
+
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ status: actionStatus })
+        .eq('id', orderId);
+
+      if (orderError) throw orderError;
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: actionStatus,
+        message: actionMessage,
+        updated_by: adminUser?.id,
+      }]);
+
+      // Send message to client
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: adminUser?.id,
+        sender_role: 'admin',
+        message: actionMessage,
+        attachments: [],
+      }]);
+
+      setOrder({ ...order!, status: actionStatus });
+      setStatusFeedback({ type: 'success', message: actionMessage });
+
+      // Refresh updates and messages
+      const { data: updatesData } = await supabase
+        .from('order_updates')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false });
+      setUpdates((updatesData as OrderUpdate[]) || []);
+
+      const { data: messagesData } = await supabase
+        .from('order_messages')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: true });
+      setMessages((messagesData as OrderMessage[]) || []);
+    } catch (error: any) {
+      setStatusFeedback({ type: 'error', message: error.message || 'Action failed' });
+    } finally {
+      setIsLoadingStatus(false);
+    }
   };
 
-  const handleSendSample = async () => {
-    setIsLoadingStatus(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    setIsLoadingStatus(false);
+  const handleRequestInfo = () =>
+    handleQuickAction('action_required' as OrderStatus, 'We need additional information from you to proceed with this order. Please check your messages and respond.');
 
-    alert('Sample approval request sent to client');
-    setNewStatus('');
-    setUpdateMessage('');
-  };
+  const handleSendSample = () =>
+    handleQuickAction('sample_approval_pending' as OrderStatus, 'We have sent you sample items for approval. Please review them and let us know if you approve or want changes.');
 
-  const handleRequestPayment = async () => {
-    setIsLoadingStatus(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    setIsLoadingStatus(false);
-
-    alert('Payment request sent to client');
-    setNewStatus('');
-    setUpdateMessage('');
-  };
+  const handleRequestPayment = () =>
+    handleQuickAction('action_required' as OrderStatus, 'Payment is required to proceed with your order. Please complete the payment at your earliest convenience.');
 
   if (isLoading) {
     return (
@@ -201,7 +312,7 @@ export default function AdminOrderDetailPage() {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-4">
-              <h1 className="text-4xl font-bold text-gray-900">Order {order.id}</h1>
+              <h1 className="text-4xl font-bold text-gray-900">Order #{order.order_number || order.id.slice(0, 8)}</h1>
               <Badge
                 variant={
                   order.status === 'delivered'
@@ -303,6 +414,15 @@ export default function AdminOrderDetailPage() {
                 </h2>
               </CardHeader>
               <CardBody className="space-y-4">
+                {statusFeedback && (
+                  <div className={`p-3 rounded-lg border ${
+                    statusFeedback.type === 'success'
+                      ? 'bg-green-50 border-green-200 text-green-700'
+                      : 'bg-red-50 border-red-200 text-red-700'
+                  }`}>
+                    <p className="text-sm">{statusFeedback.message}</p>
+                  </div>
+                )}
                 <Select
                   label="Select New Status"
                   options={ORDER_TIMELINE.map((status) => ({
@@ -460,15 +580,20 @@ export default function AdminOrderDetailPage() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-lg">
-                      T
+                      {client?.company_name?.charAt(0) || client?.full_name?.charAt(0) || '?'}
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900">
-                        TechStartup Inc
+                        {client?.company_name || 'Loading...'}
                       </p>
                       <p className="text-sm text-gray-600">
-                        john@techstartup.com
+                        {client?.email || ''}
                       </p>
+                      {client?.full_name && (
+                        <p className="text-xs text-gray-500">
+                          {client.full_name}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

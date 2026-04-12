@@ -87,7 +87,7 @@ export const LoginForm: React.FC = () => {
 
         <div className="space-y-3 text-center text-sm">
           <Link
-            href="/forgot-password"
+            href="/auth/forgot-password"
             className="text-green-600 hover:text-green-700 font-medium"
           >
             Forgot password?
@@ -95,7 +95,7 @@ export const LoginForm: React.FC = () => {
           <div>
             <span className="text-gray-600">Don't have an account? </span>
             <Link
-              href="/signup"
+              href="/auth/signup"
               className="text-green-600 hover:text-green-700 font-medium"
             >
               Sign up
