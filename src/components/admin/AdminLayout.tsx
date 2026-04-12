@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Package,
+  MessageSquare,
   ChevronDown,
   LogOut,
 } from 'lucide-react';
@@ -69,6 +70,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       label: 'All Orders',
       href: '/admin/orders',
       icon: Package,
+    },
+    {
+      label: 'Messages',
+      href: '/admin/messages',
+      icon: MessageSquare,
     },
   ];
 

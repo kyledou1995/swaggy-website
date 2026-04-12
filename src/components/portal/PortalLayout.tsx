@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   ShoppingCart,
   Plus,
+  MessageSquare,
   Menu,
   X,
   LogOut,
@@ -33,6 +34,11 @@ const NAV_LINKS = [
     label: 'My Orders',
     href: '/portal/orders',
     icon: ShoppingCart,
+  },
+  {
+    label: 'Messages',
+    href: '/portal/messages',
+    icon: MessageSquare,
   },
   {
     label: 'New Order',
