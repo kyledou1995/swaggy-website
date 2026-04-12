@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { createClient } from '@/lib/supabase';
 import { Order, OrderMessage, User } from '@/types';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
+import { notifyOrgMembers } from '@/lib/notifications';
 
 interface ConversationThread {
   order: Order;
@@ -163,6 +164,17 @@ export default function AdminMessagesPage() {
         t.order.id === selectedThread.order.id ? updatedThread : t
       ));
       setNewMessage('');
+
+      // Send notification to client
+      if (selectedThread.order.client_id) {
+        notifyOrgMembers({
+          orderId: selectedThread.order.id,
+          clientId: selectedThread.order.client_id,
+          type: 'new_message',
+          title: `New message on Order #${selectedThread.order.order_number || selectedThread.order.id.slice(0, 8)}`,
+          body: newMessage.trim().length > 100 ? newMessage.trim().slice(0, 100) + '...' : newMessage.trim(),
+        });
+      }
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {

@@ -95,11 +95,32 @@ export default function PortalMessagesPage() {
         // Build conversation threads
         const conversationThreads: ConversationThread[] = ordersData.map((order: Order) => {
           const orderMessages = messagesByOrder[order.id] || [];
+          const lastMsg = orderMessages.length > 0 ? orderMessages[orderMessages.length - 1] : null;
+
+          // Count unread: admin messages after the client's last message
+          let unread = 0;
+          if (orderMessages.length > 0) {
+            // Find the last message sent by any org member (client role)
+            let lastClientMsgIndex = -1;
+            for (let i = orderMessages.length - 1; i >= 0; i--) {
+              if (orderMessages[i].sender_role === 'client') {
+                lastClientMsgIndex = i;
+                break;
+              }
+            }
+            // Count admin messages after the client's last message
+            for (let i = lastClientMsgIndex + 1; i < orderMessages.length; i++) {
+              if (orderMessages[i].sender_role === 'admin') {
+                unread++;
+              }
+            }
+          }
+
           return {
             order,
             messages: orderMessages,
-            lastMessage: orderMessages.length > 0 ? orderMessages[orderMessages.length - 1] : null,
-            unreadCount: 0,
+            lastMessage: lastMsg,
+            unreadCount: unread,
           };
         });
 
@@ -258,19 +279,29 @@ export default function PortalMessagesPage() {
                   <p className="text-sm text-gray-500">No conversations yet</p>
                   <p className="text-xs text-gray-400 mt-1">Messages will appear here when you have orders</p>
                 </div>
-              ) : (
-                filteredThreads.map((thread) => (
+              ) : (<>
+                {filteredThreads.map((thread) => {
+                  const hasUnread = thread.unreadCount > 0;
+                  return (
                   <button
                     key={thread.order.id}
-                    onClick={() => setSelectedThread(thread)}
+                    onClick={() => {
+                      setSelectedThread(thread);
+                      // Clear unread count when selecting
+                      if (hasUnread) {
+                        setThreads(prev => prev.map(t =>
+                          t.order.id === thread.order.id ? { ...t, unreadCount: 0 } : t
+                        ));
+                      }
+                    }}
                     className={`w-full text-left px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
                       selectedThread?.order.id === thread.order.id ? 'bg-green-50 border-l-2 border-l-green-500' : ''
-                    }`}
+                    } ${hasUnread ? 'bg-green-50/50' : ''}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-gray-900 truncate">
+                          <p className={`text-sm truncate ${hasUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-900'}`}>
                             {thread.order.order_number || thread.order.id.slice(0, 8)}
                           </p>
                           <Badge
@@ -285,7 +316,7 @@ export default function PortalMessagesPage() {
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5">{thread.order.product_type}</p>
                         {thread.lastMessage ? (
-                          <p className="text-xs text-gray-400 mt-1 truncate">
+                          <p className={`text-xs mt-1 truncate ${hasUnread ? 'text-gray-700 font-semibold' : 'text-gray-400'}`}>
                             {thread.lastMessage.sender_role === 'client' ? 'You: ' : 'Swaggy: '}
                             {thread.lastMessage.message}
                           </p>
@@ -293,15 +324,23 @@ export default function PortalMessagesPage() {
                           <p className="text-xs text-gray-300 mt-1 italic">No messages yet</p>
                         )}
                       </div>
-                      {thread.lastMessage && (
-                        <span className="text-[10px] text-gray-400 flex-shrink-0 mt-1">
-                          {formatTime(thread.lastMessage.created_at)}
-                        </span>
-                      )}
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0 mt-1">
+                        {thread.lastMessage && (
+                          <span className="text-[10px] text-gray-400">
+                            {formatTime(thread.lastMessage.created_at)}
+                          </span>
+                        )}
+                        {hasUnread && (
+                          <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-green-500 rounded-full">
+                            {thread.unreadCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
-                ))
-              )}
+                  );
+                })}
+              </>)}
             </div>
           </div>
 
