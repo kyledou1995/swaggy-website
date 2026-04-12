@@ -14,6 +14,8 @@ import {
   LogOut,
   User,
   Users,
+  Settings,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -165,13 +167,41 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
             </h2>
           </div>
 
-          {/* User Avatar */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-              <User className="w-5 h-5 text-green-600" />
+          {/* User Avatar with Dropdown */}
+          <div className="relative group">
+            <div className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center">
+                <User className="w-4 h-4 text-green-600" />
+              </div>
+              <div className="hidden sm:block">
+                <p className="text-sm font-medium text-gray-900">{userName}</p>
+              </div>
+              <ChevronDown className="w-4 h-4 text-gray-400 hidden sm:block" />
             </div>
-            <div className="hidden sm:block">
-              <p className="text-sm font-medium text-gray-900">{userName}</p>
+
+            {/* Dropdown Menu */}
+            <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <p className="text-sm font-semibold text-gray-900">{userName}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{userEmail}</p>
+              </div>
+              <div className="py-1">
+                <Link href="/portal/settings">
+                  <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
+                    <Settings className="w-4 h-4 text-gray-400" />
+                    Account Settings
+                  </div>
+                </Link>
+              </div>
+              <div className="border-t border-gray-100 py-1">
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Logout
+                </button>
+              </div>
             </div>
           </div>
         </header>
