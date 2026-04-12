@@ -52,11 +52,19 @@ export default function PortalMessagesPage() {
           setUser(profileData as User);
         }
 
-        // Fetch all orders for this client
+        // Fetch all org member IDs
+        const { data: orgMembers } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('organization_id', profileData.organization_id);
+
+        const orgMemberIds = (orgMembers || []).map(m => m.id);
+
+        // Fetch all orders for the entire organization
         const { data: ordersData } = await supabase
           .from('orders')
           .select('*')
-          .eq('client_id', authUser.id)
+          .in('client_id', orgMemberIds)
           .order('updated_at', { ascending: false });
 
         if (!ordersData) {
@@ -134,6 +142,7 @@ export default function PortalMessagesPage() {
         order_id: selectedThread.order.id,
         sender_id: user.id,
         sender_role: 'client',
+        sender_name: user.full_name,
         message: newMessage.trim(),
         attachments: [],
       }]);
@@ -146,6 +155,7 @@ export default function PortalMessagesPage() {
         order_id: selectedThread.order.id,
         sender_id: user.id,
         sender_role: 'client',
+        sender_name: user.full_name,
         message: newMessage.trim(),
         attachments: [],
         created_at: new Date().toISOString(),
@@ -215,6 +225,7 @@ export default function PortalMessagesPage() {
       userName={user?.full_name || 'User'}
       userEmail={user?.email}
       companyName={user?.company_name}
+      clientRole={user?.client_role}
     >
       <div className="h-[calc(100vh-140px)]">
         <Card className="h-full flex overflow-hidden">
@@ -347,7 +358,7 @@ export default function PortalMessagesPage() {
                             <p className={`text-xs font-medium mb-1 ${
                               isClient ? 'text-green-100' : 'text-green-600'
                             }`}>
-                              {isClient ? 'You' : 'Swaggy Team'}
+                              {isClient ? (msg.sender_id === user?.id ? 'You' : (msg.sender_name || 'Teammate')) : 'Swaggy Team'}
                             </p>
                             <p className="text-sm leading-relaxed">{msg.message}</p>
                             <p className={`text-[10px] mt-2 ${

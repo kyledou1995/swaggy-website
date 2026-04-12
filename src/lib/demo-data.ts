@@ -6,6 +6,11 @@ export const DEMO_USER: User = {
   full_name: 'John Martinez',
   company_name: 'TechStartup Inc',
   role: 'client',
+  client_role: 'owner',
+  organization_id: 'user_demo_001',
+  parent_user_id: null,
+  invited_by: null,
+  invite_status: 'accepted',
   created_at: '2025-01-15T10:00:00Z',
 };
 
@@ -15,6 +20,11 @@ export const DEMO_ADMIN: User = {
   full_name: 'Sarah Chen',
   company_name: 'Swaggy',
   role: 'admin',
+  client_role: 'owner',
+  organization_id: 'user_admin_001',
+  parent_user_id: null,
+  invited_by: null,
+  invite_status: 'accepted',
   created_at: '2024-01-01T00:00:00Z',
 };
 

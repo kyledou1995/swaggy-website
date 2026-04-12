@@ -17,6 +17,10 @@ export type OrderStatus =
 
 export type UserRole = 'client' | 'admin';
 
+export type ClientRole = 'owner' | 'manager' | 'viewer';
+
+export type InviteStatus = 'pending' | 'accepted' | 'expired';
+
 export type ActionType = 'info_needed' | 'sample_approval' | 'payment_required' | 'document_upload';
 
 export interface User {
@@ -25,6 +29,11 @@ export interface User {
   full_name: string;
   company_name: string;
   role: UserRole;
+  client_role: ClientRole;
+  organization_id: string;
+  parent_user_id: string | null;
+  invited_by: string | null;
+  invite_status: InviteStatus;
   created_at: string;
 }
 
@@ -59,8 +68,18 @@ export interface OrderMessage {
   order_id: string;
   sender_id: string;
   sender_role: UserRole;
+  sender_name?: string;
   message: string;
   attachments: string[];
+  created_at: string;
+}
+
+export interface TeamMember {
+  id: string;
+  email: string;
+  full_name: string;
+  client_role: ClientRole;
+  invite_status: InviteStatus;
   created_at: string;
 }
 

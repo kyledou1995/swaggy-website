@@ -13,6 +13,7 @@ import {
   X,
   LogOut,
   User,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -22,6 +23,7 @@ interface PortalLayoutProps {
   userEmail?: string;
   userName?: string;
   companyName?: string;
+  clientRole?: string;
 }
 
 const NAV_LINKS = [
@@ -45,6 +47,12 @@ const NAV_LINKS = [
     href: '/portal/orders/new',
     icon: Plus,
   },
+  {
+    label: 'Team',
+    href: '/portal/team',
+    icon: Users,
+    ownerOnly: true,
+  },
 ];
 
 export const PortalLayout: React.FC<PortalLayoutProps> = ({
@@ -53,6 +61,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
   userEmail = 'john@techstartup.com',
   userName = 'John Martinez',
   companyName = 'TechStartup Inc',
+  clientRole = 'owner',
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
@@ -91,7 +100,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-6 space-y-1">
-          {NAV_LINKS.map((link) => {
+          {NAV_LINKS.filter((link) => !(link as any).ownerOnly || clientRole === 'owner').map((link) => {
             const Icon = link.icon;
             const active = isActive(link.href);
 

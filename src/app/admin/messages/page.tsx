@@ -134,6 +134,7 @@ export default function AdminMessagesPage() {
         order_id: selectedThread.order.id,
         sender_id: adminUser.id,
         sender_role: 'admin',
+        sender_name: 'Swaggy Team',
         message: newMessage.trim(),
         attachments: [],
       }]);
@@ -145,6 +146,7 @@ export default function AdminMessagesPage() {
         order_id: selectedThread.order.id,
         sender_id: adminUser.id,
         sender_role: 'admin',
+        sender_name: 'Swaggy Team',
         message: newMessage.trim(),
         attachments: [],
         created_at: new Date().toISOString(),
@@ -348,7 +350,7 @@ export default function AdminMessagesPage() {
                               <p className={`text-xs font-medium mb-1 ${
                                 isAdmin ? 'text-green-100' : 'text-blue-600'
                               }`}>
-                                {isAdmin ? 'You' : selectedThread.client?.full_name || 'Client'}
+                                {isAdmin ? 'You' : (msg.sender_name || selectedThread.client?.full_name || 'Client')}
                               </p>
                               <p className="text-sm leading-relaxed">{msg.message}</p>
                               <p className={`text-[10px] mt-2 ${
