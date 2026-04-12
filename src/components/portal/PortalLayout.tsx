@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
@@ -36,27 +36,32 @@ const NAV_LINKS = [
     label: 'Dashboard',
     href: '/portal/dashboard',
     icon: LayoutDashboard,
+    badgeKey: null,
   },
   {
     label: 'My Orders',
     href: '/portal/orders',
     icon: ShoppingCart,
+    badgeKey: 'orders' as const,
   },
   {
     label: 'Messages',
     href: '/portal/messages',
     icon: MessageSquare,
+    badgeKey: 'messages' as const,
   },
   {
     label: 'New Order',
     href: '/portal/orders/new',
     icon: Plus,
+    badgeKey: null,
   },
   {
     label: 'Team',
     href: '/portal/team',
     icon: Users,
     ownerOnly: true,
+    badgeKey: null,
   },
 ];
 
@@ -70,8 +75,35 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
   userId,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [navBadges, setNavBadges] = useState<{ orders: number; messages: number }>({ orders: 0, messages: 0 });
   const pathname = usePathname();
   const router = useRouter();
+
+  // Fetch unread counts for sidebar badges
+  useEffect(() => {
+    if (!userId) return;
+
+    const fetchBadgeCounts = async () => {
+      const supabase = createClient();
+
+      // Get unread notifications grouped by type
+      const { data: notifications } = await supabase
+        .from('notifications')
+        .select('type')
+        .eq('user_id', userId)
+        .eq('is_read', false);
+
+      if (notifications) {
+        const orderCount = notifications.filter((n: any) => n.type === 'order_status').length;
+        const messageCount = notifications.filter((n: any) => n.type === 'new_message').length;
+        setNavBadges({ orders: orderCount, messages: messageCount });
+      }
+    };
+
+    fetchBadgeCounts();
+    const interval = setInterval(fetchBadgeCounts, 30000);
+    return () => clearInterval(interval);
+  }, [userId]);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -109,6 +141,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
           {NAV_LINKS.filter((link) => !(link as any).ownerOnly || clientRole === 'owner').map((link) => {
             const Icon = link.icon;
             const active = isActive(link.href);
+            const badgeCount = link.badgeKey ? navBadges[link.badgeKey] : 0;
 
             return (
               <Link key={link.href} href={link.href}>
@@ -120,7 +153,12 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
                   }`}
                 >
                   <Icon className="w-5 h-5" />
-                  <span className="font-medium text-sm">{link.label}</span>
+                  <span className="font-medium text-sm flex-1">{link.label}</span>
+                  {badgeCount > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-bold text-white bg-red-500 rounded-full">
+                      {badgeCount > 9 ? '9+' : badgeCount}
+                    </span>
+                  )}
                 </div>
               </Link>
             );

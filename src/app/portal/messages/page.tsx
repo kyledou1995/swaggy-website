@@ -83,6 +83,17 @@ export default function PortalMessagesPage() {
           .in('order_id', orderIds)
           .order('created_at', { ascending: true });
 
+        // Fetch message read timestamps for this user
+        const { data: readsData } = await supabase
+          .from('message_reads')
+          .select('order_id, last_read_at')
+          .eq('user_id', authUser.id);
+
+        const readsByOrder: Record<string, string> = {};
+        (readsData || []).forEach((r: any) => {
+          readsByOrder[r.order_id] = r.last_read_at;
+        });
+
         // Group messages by order
         const messagesByOrder: Record<string, OrderMessage[]> = {};
         (messagesData || []).forEach((msg: OrderMessage) => {
@@ -97,21 +108,15 @@ export default function PortalMessagesPage() {
           const orderMessages = messagesByOrder[order.id] || [];
           const lastMsg = orderMessages.length > 0 ? orderMessages[orderMessages.length - 1] : null;
 
-          // Count unread: admin messages after the client's last message
+          // Count unread: admin messages after user's last_read_at
           let unread = 0;
+          const lastReadAt = readsByOrder[order.id];
           if (orderMessages.length > 0) {
-            // Find the last message sent by any org member (client role)
-            let lastClientMsgIndex = -1;
-            for (let i = orderMessages.length - 1; i >= 0; i--) {
-              if (orderMessages[i].sender_role === 'client') {
-                lastClientMsgIndex = i;
-                break;
-              }
-            }
-            // Count admin messages after the client's last message
-            for (let i = lastClientMsgIndex + 1; i < orderMessages.length; i++) {
-              if (orderMessages[i].sender_role === 'admin') {
-                unread++;
+            for (const msg of orderMessages) {
+              if (msg.sender_role === 'admin') {
+                if (!lastReadAt || new Date(msg.created_at) > new Date(lastReadAt)) {
+                  unread++;
+                }
               }
             }
           }
@@ -287,11 +292,22 @@ export default function PortalMessagesPage() {
                     key={thread.order.id}
                     onClick={() => {
                       setSelectedThread(thread);
-                      // Clear unread count when selecting
+                      // Clear unread count and persist read state
                       if (hasUnread) {
                         setThreads(prev => prev.map(t =>
                           t.order.id === thread.order.id ? { ...t, unreadCount: 0 } : t
                         ));
+                        // Upsert message_reads to persist read state
+                        const supabase = createClient();
+                        supabase
+                          .from('message_reads')
+                          .upsert(
+                            { user_id: userId, order_id: thread.order.id, last_read_at: new Date().toISOString() },
+                            { onConflict: 'user_id,order_id' }
+                          )
+                          .then(({ error }) => {
+                            if (error) console.error('Error updating message read:', error);
+                          });
                       }
                     }}
                     className={`w-full text-left px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors ${

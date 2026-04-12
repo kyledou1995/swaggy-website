@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase';
 import { NotificationType } from '@/types';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 interface CreateNotificationParams {
   userId: string;
@@ -7,14 +8,15 @@ interface CreateNotificationParams {
   title: string;
   body: string;
   orderId?: string;
+  supabaseClient?: SupabaseClient;
 }
 
 /**
  * Create an in-app notification for a user.
- * Also checks the user's email notification preferences.
+ * Accepts an optional supabaseClient to reuse an authenticated session.
  */
 export async function createNotification(params: CreateNotificationParams) {
-  const supabase = createClient();
+  const supabase = params.supabaseClient || createClient();
 
   const { error } = await supabase.from('notifications').insert({
     user_id: params.userId,
@@ -37,6 +39,7 @@ export async function createNotification(params: CreateNotificationParams) {
  * Create notifications for all members of an organization.
  * Used when an order status changes or a message is received,
  * since org members share orders.
+ * Accepts an optional supabaseClient to reuse an authenticated session.
  */
 export async function notifyOrgMembers({
   orderId,
@@ -44,14 +47,16 @@ export async function notifyOrgMembers({
   type,
   title,
   body,
+  supabaseClient,
 }: {
   orderId: string;
   clientId: string;
   type: NotificationType;
   title: string;
   body: string;
+  supabaseClient?: SupabaseClient;
 }) {
-  const supabase = createClient();
+  const supabase = supabaseClient || createClient();
 
   // Get the org of the client who owns the order
   const { data: profile } = await supabase
@@ -62,7 +67,7 @@ export async function notifyOrgMembers({
 
   if (!profile?.organization_id) {
     // Fallback: just notify the order owner
-    return createNotification({ userId: clientId, type, title, body, orderId });
+    return createNotification({ userId: clientId, type, title, body, orderId, supabaseClient: supabase });
   }
 
   // Get all org members
@@ -73,7 +78,7 @@ export async function notifyOrgMembers({
     .eq('invite_status', 'active');
 
   if (!members || members.length === 0) {
-    return createNotification({ userId: clientId, type, title, body, orderId });
+    return createNotification({ userId: clientId, type, title, body, orderId, supabaseClient: supabase });
   }
 
   // Filter members based on their notification preferences

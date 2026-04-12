@@ -165,14 +165,15 @@ export default function AdminMessagesPage() {
       ));
       setNewMessage('');
 
-      // Send notification to client
+      // Send notification to client (pass authenticated supabase client)
       if (selectedThread.order.client_id) {
-        notifyOrgMembers({
+        await notifyOrgMembers({
           orderId: selectedThread.order.id,
           clientId: selectedThread.order.client_id,
           type: 'new_message',
           title: `New message on Order #${selectedThread.order.order_number || selectedThread.order.id.slice(0, 8)}`,
           body: newMessage.trim().length > 100 ? newMessage.trim().slice(0, 100) + '...' : newMessage.trim(),
+          supabaseClient: supabase,
         });
       }
     } catch (error) {

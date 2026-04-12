@@ -165,12 +165,13 @@ export default function AdminOrderDetailPage() {
 
       // Send notification to client org
       if (order?.client_id) {
-        notifyOrgMembers({
+        await notifyOrgMembers({
           orderId,
           clientId: order.client_id,
           type: 'order_status',
           title: `Order #${order.order_number || orderId.slice(0, 8)} — ${ORDER_STATUS_LABELS[newStatus]}`,
           body: updateMessage,
+          supabaseClient: supabase,
         });
       }
 
@@ -222,12 +223,13 @@ export default function AdminOrderDetailPage() {
 
       // Send notification for new message
       if (order?.client_id) {
-        notifyOrgMembers({
+        await notifyOrgMembers({
           orderId,
           clientId: order.client_id,
           type: 'new_message',
           title: `New message on Order #${order.order_number || orderId.slice(0, 8)}`,
           body: messageText.length > 100 ? messageText.slice(0, 100) + '...' : messageText,
+          supabaseClient: supabase,
         });
       }
     } catch (error: any) {
@@ -272,12 +274,13 @@ export default function AdminOrderDetailPage() {
 
       // Send notification
       if (order?.client_id) {
-        notifyOrgMembers({
+        await notifyOrgMembers({
           orderId,
           clientId: order.client_id,
           type: 'order_status',
           title: `Order #${order.order_number || orderId.slice(0, 8)} — ${ORDER_STATUS_LABELS[actionStatus]}`,
           body: actionMessage,
+          supabaseClient: supabase,
         });
       }
 
