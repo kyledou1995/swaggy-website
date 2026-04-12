@@ -278,6 +278,7 @@ export default function OrderDetailPage() {
   return (
     <PortalLayout
       pageTitle={`Order #${order.order_number || order.id.slice(0, 8)}`}
+      userId={user?.id}
       userName={user?.full_name || 'User'}
       userEmail={user?.email || ''}
       companyName={user?.company_name || ''}

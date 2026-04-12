@@ -16,8 +16,10 @@ import {
   Users,
   Settings,
   ChevronDown,
+  Bell,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { NotificationBell } from '@/components/portal/NotificationBell';
 
 interface PortalLayoutProps {
   children: React.ReactNode;
@@ -26,6 +28,7 @@ interface PortalLayoutProps {
   userName?: string;
   companyName?: string;
   clientRole?: string;
+  userId?: string;
 }
 
 const NAV_LINKS = [
@@ -64,6 +67,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
   userName = 'John Martinez',
   companyName = 'TechStartup Inc',
   clientRole = 'owner',
+  userId,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
@@ -167,6 +171,10 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
             </h2>
           </div>
 
+          <div className="flex items-center gap-2">
+          {/* Notification Bell */}
+          <NotificationBell userId={userId} />
+
           {/* User Avatar with Dropdown */}
           <div className="relative group">
             <div className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors">
@@ -193,6 +201,12 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
                     Account Settings
                   </div>
                 </Link>
+                <Link href="/portal/settings#notifications">
+                  <div className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
+                    <Bell className="w-4 h-4 text-gray-400" />
+                    Notification Preferences
+                  </div>
+                </Link>
               </div>
               <div className="border-t border-gray-100 py-1">
                 <button
@@ -205,6 +219,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
               </div>
             </div>
             </div>
+          </div>
           </div>
         </header>
 

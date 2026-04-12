@@ -46,6 +46,7 @@ const StatCard = ({
 export default function DashboardPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [userId, setUserId] = useState('');
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -61,6 +62,8 @@ export default function DashboardPage() {
         router.push('/auth/login');
         return;
       }
+
+      setUserId(user.id);
 
       // Get profile
       const { data: profile } = await supabase
@@ -105,6 +108,7 @@ export default function DashboardPage() {
   return (
     <PortalLayout
       pageTitle="Dashboard"
+      userId={userId}
       userName={userName}
       userEmail={userEmail}
       companyName={companyName}

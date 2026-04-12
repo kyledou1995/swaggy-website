@@ -298,7 +298,7 @@ export default function NewOrderPage() {
 
   if (showSuccess) {
     return (
-      <PortalLayout pageTitle="New Order" userName={userName} userEmail={userEmail} companyName={companyName}>
+      <PortalLayout pageTitle="New Order" userId={userId} userName={userName} userEmail={userEmail} companyName={companyName}>
         <div className="max-w-2xl mx-auto">
           <Card>
             <CardBody className="text-center py-12">
@@ -342,7 +342,7 @@ export default function NewOrderPage() {
   const remainingQty = orderQty - totalSplitQty;
 
   return (
-    <PortalLayout pageTitle="New Order" userName={userName} userEmail={userEmail} companyName={companyName}>
+    <PortalLayout pageTitle="New Order" userId={userId} userName={userName} userEmail={userEmail} companyName={companyName}>
       <div className="max-w-2xl mx-auto">
         {/* Step Indicator */}
         <div className="mb-8">

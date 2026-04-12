@@ -112,6 +112,20 @@ export interface DeliveryAddress {
   updated_at: string;
 }
 
+export type NotificationType = 'order_status' | 'new_message';
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  order_id: string | null;
+  is_read: boolean;
+  email_sent: boolean;
+  created_at: string;
+}
+
 export interface OrderShipment {
   id: string;
   order_id: string;

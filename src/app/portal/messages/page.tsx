@@ -21,6 +21,7 @@ interface ConversationThread {
 
 export default function PortalMessagesPage() {
   const router = useRouter();
+  const [userId, setUserId] = useState('');
   const [user, setUser] = useState<User | null>(null);
   const [threads, setThreads] = useState<ConversationThread[]>([]);
   const [selectedThread, setSelectedThread] = useState<ConversationThread | null>(null);
@@ -40,6 +41,8 @@ export default function PortalMessagesPage() {
           router.push('/auth/login');
           return;
         }
+
+        setUserId(authUser.id);
 
         // Fetch profile
         const { data: profileData } = await supabase
@@ -208,6 +211,7 @@ export default function PortalMessagesPage() {
     return (
       <PortalLayout
         pageTitle="Messages"
+        userId={userId}
         userName={user?.full_name}
         userEmail={user?.email}
         companyName={user?.company_name}
@@ -222,6 +226,7 @@ export default function PortalMessagesPage() {
   return (
     <PortalLayout
       pageTitle="Messages"
+      userId={userId}
       userName={user?.full_name || 'User'}
       userEmail={user?.email}
       companyName={user?.company_name}

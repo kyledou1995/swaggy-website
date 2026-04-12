@@ -24,6 +24,7 @@ const getStatusVariant = (status: string) => {
 export default function OrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [userId, setUserId] = useState('');
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -41,6 +42,8 @@ export default function OrdersPage() {
         router.push('/auth/login');
         return;
       }
+
+      setUserId(user.id);
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -95,6 +98,7 @@ export default function OrdersPage() {
   return (
     <PortalLayout
       pageTitle="My Orders"
+      userId={userId}
       userName={userName}
       userEmail={userEmail}
       companyName={companyName}

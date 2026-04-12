@@ -18,6 +18,7 @@ import {
   PRODUCT_TYPES,
 } from '@/lib/constants';
 import { OrderStatus, Order, OrderUpdate, OrderMessage, OrderSpecification, User } from '@/types';
+import { notifyOrgMembers } from '@/lib/notifications';
 import Link from 'next/link';
 
 export default function AdminOrderDetailPage() {
@@ -162,6 +163,17 @@ export default function AdminOrderDetailPage() {
       setNewStatus('');
       setUpdateMessage('');
 
+      // Send notification to client org
+      if (order?.client_id) {
+        notifyOrgMembers({
+          orderId,
+          clientId: order.client_id,
+          type: 'order_status',
+          title: `Order #${order.order_number || orderId.slice(0, 8)} — ${ORDER_STATUS_LABELS[newStatus]}`,
+          body: updateMessage,
+        });
+      }
+
       // Refresh updates
       const { data: updatesData } = await supabase
         .from('order_updates')
@@ -207,6 +219,17 @@ export default function AdminOrderDetailPage() {
       };
       setMessages([...messages, newMsg]);
       setMessageText('');
+
+      // Send notification for new message
+      if (order?.client_id) {
+        notifyOrgMembers({
+          orderId,
+          clientId: order.client_id,
+          type: 'new_message',
+          title: `New message on Order #${order.order_number || orderId.slice(0, 8)}`,
+          body: messageText.length > 100 ? messageText.slice(0, 100) + '...' : messageText,
+        });
+      }
     } catch (error: any) {
       setMessageFeedback({ type: 'error', message: error.message || 'Failed to send message' });
     } finally {
@@ -246,6 +269,17 @@ export default function AdminOrderDetailPage() {
 
       setOrder({ ...order!, status: actionStatus });
       setStatusFeedback({ type: 'success', message: actionMessage });
+
+      // Send notification
+      if (order?.client_id) {
+        notifyOrgMembers({
+          orderId,
+          clientId: order.client_id,
+          type: 'order_status',
+          title: `Order #${order.order_number || orderId.slice(0, 8)} — ${ORDER_STATUS_LABELS[actionStatus]}`,
+          body: actionMessage,
+        });
+      }
 
       // Refresh updates and messages
       const { data: updatesData } = await supabase

@@ -29,6 +29,7 @@ interface TeamMemberWithId extends TeamMember {
 
 export default function TeamPage() {
   const router = useRouter();
+  const [userId, setUserId] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMemberWithId[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +59,8 @@ export default function TeamPage() {
           router.push('/auth/login');
           return;
         }
+
+        setUserId(user.id);
 
         // Fetch current user's profile
         const { data: profile, error: profileError } = await supabase
@@ -319,6 +322,7 @@ export default function TeamPage() {
   return (
     <PortalLayout
       pageTitle="Team"
+      userId={userId}
       userName={currentUser?.full_name || ''}
       userEmail={currentUser?.email || ''}
       companyName={currentUser?.company_name || ''}
