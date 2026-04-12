@@ -1295,6 +1295,201 @@ export default function AdminOrderDetailPage() {
               </CardBody>
             </Card>
 
+            {/* Accounting & Financials */}
+            <Card className="border border-gray-200">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-gray-700" />
+                  <h2 className="text-lg font-semibold text-gray-900">Financials</h2>
+                </div>
+              </CardHeader>
+              <CardBody className="space-y-4">
+                {/* Quote Summary */}
+                {order.quote_air_price_per_unit || order.quote_ocean_price_per_unit ? (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Quote</p>
+                    <div className="space-y-2">
+                      {order.quote_air_price_per_unit && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Air Freight</span>
+                          <span className="font-medium text-gray-900">${order.quote_air_price_per_unit.toFixed(2)}/unit</span>
+                        </div>
+                      )}
+                      {order.quote_air_price_per_unit && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500 pl-2">× {order.quantity.toLocaleString()} units</span>
+                          <span className="text-gray-700">${(order.quote_air_price_per_unit * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                      {order.quote_ocean_price_per_unit && (
+                        <div className="flex justify-between text-sm mt-1">
+                          <span className="text-gray-600">Ocean Freight</span>
+                          <span className="font-medium text-gray-900">${order.quote_ocean_price_per_unit.toFixed(2)}/unit</span>
+                        </div>
+                      )}
+                      {order.quote_ocean_price_per_unit && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500 pl-2">× {order.quantity.toLocaleString()} units</span>
+                          <span className="text-gray-700">${(order.quote_ocean_price_per_unit * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                      {order.quote_submitted_at && (
+                        <p className="text-xs text-gray-400 mt-1">Quoted {new Date(order.quote_submitted_at).toLocaleDateString()}</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Quote</p>
+                    <p className="text-sm text-gray-400">No quote submitted yet</p>
+                  </div>
+                )}
+
+                <div className="border-t border-gray-100" />
+
+                {/* Selected Option & Order Value */}
+                {order.selected_shipping ? (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Order Value</p>
+                    <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Selected</span>
+                        <span className="font-medium text-gray-900">DDP {order.selected_shipping === 'air' ? 'Air' : 'Ocean'}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Unit Price</span>
+                        <span className="font-medium text-gray-900">
+                          ${(order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit)?.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Quantity</span>
+                        <span className="font-medium text-gray-900">{order.quantity.toLocaleString()}</span>
+                      </div>
+                      <div className="border-t border-gray-200 pt-2 flex justify-between">
+                        <span className="text-sm font-semibold text-gray-700">Total Order</span>
+                        <span className="font-bold text-gray-900">
+                          ${(((order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit) || 0) * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Order Value</p>
+                    <p className="text-sm text-gray-400">No shipping option selected</p>
+                  </div>
+                )}
+
+                <div className="border-t border-gray-100" />
+
+                {/* Deposit */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Deposit (30%)</p>
+                  {order.deposit_amount ? (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Amount</span>
+                        <span className="font-medium text-gray-900">${order.deposit_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Status</span>
+                        {order.deposit_paid ? (
+                          <span className="inline-flex items-center gap-1 text-green-700 font-medium">
+                            <CheckCircle className="w-3.5 h-3.5" /> Paid
+                          </span>
+                        ) : (
+                          <span className="text-orange-600 font-medium">Pending</span>
+                        )}
+                      </div>
+                      {order.deposit_paid_at && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">Paid on</span>
+                          <span className="text-gray-500">{new Date(order.deposit_paid_at).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                      {order.stripe_payment_intent_id && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">Stripe ID</span>
+                          <span className="text-gray-500 font-mono text-[10px]">{order.stripe_payment_intent_id.slice(0, 20)}...</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400">No deposit required yet</p>
+                  )}
+                </div>
+
+                {/* Remaining Balance */}
+                {order.selected_shipping && order.deposit_paid && (
+                  <>
+                    <div className="border-t border-gray-100" />
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Balance</p>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Order Total</span>
+                          <span className="text-gray-900">
+                            ${(((order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit) || 0) * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Deposit Paid</span>
+                          <span className="text-green-700">-${(order.deposit_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        <div className="border-t border-gray-200 pt-2 flex justify-between">
+                          <span className="text-sm font-semibold text-gray-700">Remaining</span>
+                          <span className="font-bold text-gray-900">
+                            ${((((order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit) || 0) * order.quantity) - (order.deposit_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Refund */}
+                {order.refund_issued && (
+                  <>
+                    <div className="border-t border-gray-100" />
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Refund</p>
+                      <div className="bg-green-50 rounded-lg p-3 space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-green-700">Refunded</span>
+                          <span className="font-bold text-green-800">${order.refund_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </div>
+                        {order.refund_issued_at && (
+                          <div className="flex justify-between text-xs">
+                            <span className="text-green-600">Issued</span>
+                            <span className="text-green-600">{new Date(order.refund_issued_at).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                        {order.refund_note && (
+                          <p className="text-xs text-green-700 mt-1">{order.refund_note}</p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Net Revenue (if deposit paid and no full refund) */}
+                {order.deposit_paid && (
+                  <>
+                    <div className="border-t border-gray-200" />
+                    <div className="bg-gray-900 text-white rounded-lg p-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-300">Net Received</span>
+                        <span className="text-lg font-bold">
+                          ${((order.deposit_amount || 0) - (order.refund_issued ? (order.refund_amount || 0) : 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </CardBody>
+            </Card>
+
             {/* Recent Updates */}
             <Card>
               <CardHeader>
