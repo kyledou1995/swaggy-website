@@ -19,7 +19,7 @@ export type UserRole = 'client' | 'admin';
 
 export type ClientRole = 'owner' | 'manager' | 'viewer';
 
-export type InviteStatus = 'pending' | 'accepted' | 'expired';
+export type InviteStatus = 'pending' | 'active' | 'expired';
 
 export type ActionType = 'info_needed' | 'sample_approval' | 'payment_required' | 'document_upload';
 

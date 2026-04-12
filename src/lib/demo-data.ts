@@ -10,7 +10,7 @@ export const DEMO_USER: User = {
   organization_id: 'user_demo_001',
   parent_user_id: null,
   invited_by: null,
-  invite_status: 'accepted',
+  invite_status: 'active',
   created_at: '2025-01-15T10:00:00Z',
 };
 
@@ -24,7 +24,7 @@ export const DEMO_ADMIN: User = {
   organization_id: 'user_admin_001',
   parent_user_id: null,
   invited_by: null,
-  invite_status: 'accepted',
+  invite_status: 'active',
   created_at: '2024-01-01T00:00:00Z',
 };
 

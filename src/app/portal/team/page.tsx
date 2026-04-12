@@ -290,7 +290,7 @@ export default function TeamPage() {
 
   const getInviteStatusColor = (status: string) => {
     switch (status) {
-      case 'accepted':
+      case 'active':
         return 'success';
       case 'pending':
         return 'warning';
@@ -303,7 +303,7 @@ export default function TeamPage() {
 
   const getInviteStatusIcon = (status: string) => {
     switch (status) {
-      case 'accepted':
+      case 'active':
         return <CheckCircle className="w-4 h-4" />;
       case 'pending':
         return <Clock className="w-4 h-4" />;
@@ -522,7 +522,7 @@ export default function TeamPage() {
                   {/* Status and Controls */}
                   <div className="flex items-center gap-4 ml-4">
                     {/* Invite Status */}
-                    {member.invite_status !== 'accepted' && (
+                    {member.invite_status !== 'active' && (
                       <Badge
                         variant={getInviteStatusColor(member.invite_status) as any}
                         size="sm"
