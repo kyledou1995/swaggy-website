@@ -77,6 +77,11 @@ export interface Order {
   cancellation_reason?: string | null;
   cancelled_at?: string | null;
   cancelled_by?: string | null;
+  // Refund fields
+  refund_amount?: number | null;
+  refund_issued?: boolean;
+  refund_issued_at?: string | null;
+  refund_note?: string | null;
 }
 
 export interface OrderUpdate {

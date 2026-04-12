@@ -568,6 +568,78 @@ export default function AdminOrderDetailPage() {
     }
   };
 
+  // Refund state and handler
+  const [showRefundForm, setShowRefundForm] = useState(false);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundNote, setRefundNote] = useState('');
+  const [isRefunding, setIsRefunding] = useState(false);
+
+  useEffect(() => {
+    if (order?.deposit_amount && !refundAmount) {
+      setRefundAmount(String(order.deposit_amount));
+    }
+  }, [order?.deposit_amount]);
+
+  const handleIssueRefund = async () => {
+    if (!refundAmount || parseFloat(refundAmount) <= 0) {
+      setStatusFeedback({ type: 'error', message: 'Please enter a valid refund amount.' });
+      return;
+    }
+
+    setIsRefunding(true);
+    setStatusFeedback(null);
+
+    try {
+      const supabase = createClient();
+
+      await supabase.from('orders').update({
+        refund_amount: parseFloat(refundAmount),
+        refund_issued: true,
+        refund_issued_at: new Date().toISOString(),
+        refund_note: refundNote || null,
+      }).eq('id', orderId);
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: 'cancelled',
+        message: `Refund of $${parseFloat(refundAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })} has been issued.${refundNote ? ` Note: ${refundNote}` : ''}`,
+        updated_by: adminUser?.id,
+      }]);
+
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: adminUser?.id,
+        sender_role: 'admin',
+        message: `A refund of $${parseFloat(refundAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })} has been issued for your deposit. Please allow 5–10 business days for the refund to appear in your account.${refundNote ? `\n\nNote: ${refundNote}` : ''}`,
+        attachments: [],
+      }]);
+
+      if (order?.client_id) {
+        await notifyOrgMembers({
+          orderId,
+          clientId: order.client_id,
+          type: 'order_status',
+          title: `Refund Issued — Order #${order?.order_number || orderId.slice(0, 8)}`,
+          body: `A refund of $${parseFloat(refundAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })} has been issued for your deposit.`,
+          supabaseClient: supabase,
+        });
+      }
+
+      setOrder({ ...order!, refund_amount: parseFloat(refundAmount), refund_issued: true, refund_issued_at: new Date().toISOString(), refund_note: refundNote || null });
+      setShowRefundForm(false);
+      setStatusFeedback({ type: 'success', message: 'Refund recorded and client notified.' });
+
+      const { data: updatesData } = await supabase.from('order_updates').select('*').eq('order_id', orderId).order('created_at', { ascending: false });
+      setUpdates((updatesData as OrderUpdate[]) || []);
+      const { data: messagesData } = await supabase.from('order_messages').select('*').eq('order_id', orderId).order('created_at', { ascending: true });
+      setMessages((messagesData as OrderMessage[]) || []);
+    } catch (error: any) {
+      setStatusFeedback({ type: 'error', message: error.message || 'Failed to issue refund.' });
+    } finally {
+      setIsRefunding(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <AdminLayout>
@@ -633,7 +705,7 @@ export default function AdminOrderDetailPage() {
 
         {/* Cancelled Banner */}
         {order.status === 'cancelled' && (
-          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-5">
+          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-5 space-y-4">
             <div className="flex items-start gap-3">
               <XCircle className="w-6 h-6 text-red-500 mt-0.5 flex-shrink-0" />
               <div className="flex-1">
@@ -649,6 +721,73 @@ export default function AdminOrderDetailPage() {
                 Reactivate Order
               </Button>
             </div>
+
+            {/* Deposit Refund Section */}
+            {order.deposit_paid && (
+              <div className="border-t border-red-200 pt-4">
+                {order.refund_issued ? (
+                  <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-lg p-4">
+                    <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-semibold text-green-800">
+                        Refund of ${order.refund_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })} Issued
+                      </p>
+                      {order.refund_issued_at && (
+                        <p className="text-sm text-green-700">Issued on {new Date(order.refund_issued_at).toLocaleString()}</p>
+                      )}
+                      {order.refund_note && (
+                        <p className="text-sm text-green-700 mt-1">Note: {order.refund_note}</p>
+                      )}
+                    </div>
+                  </div>
+                ) : !showRefundForm ? (
+                  <div className="flex items-center justify-between bg-white border border-red-200 rounded-lg p-4">
+                    <div>
+                      <p className="font-medium text-gray-900">Deposit Received: ${order.deposit_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                      <p className="text-sm text-gray-600">The client paid a deposit before cancellation. Would you like to issue a refund?</p>
+                    </div>
+                    <Button variant="primary" size="sm" onClick={() => setShowRefundForm(true)}>
+                      Issue Refund
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="bg-white border border-red-200 rounded-lg p-4 space-y-3">
+                    <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-gray-600" />
+                      Issue Deposit Refund
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        label="Refund Amount ($)"
+                        type="number"
+                        step="0.01"
+                        value={refundAmount}
+                        onChange={(e) => setRefundAmount(e.target.value)}
+                      />
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Original Deposit</p>
+                        <p className="text-lg font-bold text-gray-900">${order.deposit_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                      </div>
+                    </div>
+                    <Textarea
+                      label="Refund Note (optional)"
+                      placeholder="e.g. Full refund — order cancelled before production"
+                      value={refundNote}
+                      onChange={(e) => setRefundNote(e.target.value)}
+                      rows={2}
+                    />
+                    <div className="flex gap-3">
+                      <Button variant="secondary" onClick={() => setShowRefundForm(false)} className="flex-1">
+                        Cancel
+                      </Button>
+                      <Button variant="primary" onClick={handleIssueRefund} isLoading={isRefunding} className="flex-1">
+                        Confirm Refund of ${refundAmount ? parseFloat(refundAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

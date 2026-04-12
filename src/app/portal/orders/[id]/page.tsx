@@ -389,18 +389,45 @@ export default function OrderDetailPage() {
 
         {/* Cancellation Banner */}
         {order.status === 'cancelled' && (
-          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-5 flex items-start gap-3">
-            <XCircle className="w-6 h-6 text-red-500 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="font-bold text-red-800 text-lg">Order Cancelled</h3>
-              {order.cancellation_reason && (
-                <p className="text-red-700 mt-1"><span className="font-medium">Reason:</span> {order.cancellation_reason}</p>
-              )}
-              {order.cancelled_at && (
-                <p className="text-red-600 text-sm mt-1">Cancelled on {new Date(order.cancelled_at).toLocaleString()}</p>
-              )}
-              <p className="text-sm text-gray-600 mt-2">If you have questions about this cancellation, please use the message thread below.</p>
+          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <XCircle className="w-6 h-6 text-red-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <h3 className="font-bold text-red-800 text-lg">Order Cancelled</h3>
+                {order.cancellation_reason && (
+                  <p className="text-red-700 mt-1"><span className="font-medium">Reason:</span> {order.cancellation_reason}</p>
+                )}
+                {order.cancelled_at && (
+                  <p className="text-red-600 text-sm mt-1">Cancelled on {new Date(order.cancelled_at).toLocaleString()}</p>
+                )}
+                <p className="text-sm text-gray-600 mt-2">If you have questions about this cancellation, please use the message thread below.</p>
+              </div>
             </div>
+
+            {/* Refund Status */}
+            {order.refund_issued && (
+              <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-lg p-4">
+                <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold text-green-800">
+                    Refund of ${order.refund_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })} Issued
+                  </p>
+                  {order.refund_issued_at && (
+                    <p className="text-sm text-green-700">Issued on {new Date(order.refund_issued_at).toLocaleString()}</p>
+                  )}
+                  <p className="text-sm text-green-700 mt-1">Please allow 5–10 business days for the refund to appear in your account.</p>
+                </div>
+              </div>
+            )}
+            {order.deposit_paid && !order.refund_issued && (
+              <div className="flex items-start gap-3 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <DollarSign className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-yellow-800">Deposit of ${order.deposit_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })} on file</p>
+                  <p className="text-sm text-yellow-700">Our team is reviewing the refund for your deposit. If you have questions, please message us below.</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
