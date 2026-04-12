@@ -568,6 +568,63 @@ export default function AdminOrderDetailPage() {
     }
   };
 
+  // Invoice & payment request state
+  const [sendingInvoice, setSendingInvoice] = useState(false);
+  const [invoiceSent, setInvoiceSent] = useState(false);
+  const [showPaymentRequest, setShowPaymentRequest] = useState(false);
+  const [paymentRequestAmount, setPaymentRequestAmount] = useState('');
+  const [paymentRequestNote, setPaymentRequestNote] = useState('');
+  const [isRequestingPayment, setIsRequestingPayment] = useState(false);
+
+  const handleRequestPaymentCustom = async () => {
+    if (!paymentRequestAmount || parseFloat(paymentRequestAmount) <= 0) return;
+    setIsRequestingPayment(true);
+    try {
+      const supabase = createClient();
+      const amount = parseFloat(paymentRequestAmount);
+      const reason = paymentRequestNote.trim();
+
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: adminUser?.id,
+        sender_role: 'admin',
+        message: `💰 Payment Request — $${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}\n\nOrder: #${order?.order_number || orderId.slice(0, 8)}${reason ? `\nReason: ${reason}` : ''}\n\nPlease arrange payment at your earliest convenience. If you have questions, reply to this message.`,
+        attachments: [],
+      }]);
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: order?.status || 'action_required',
+        message: `Payment of $${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} requested from client.${reason ? ` Reason: ${reason}` : ''}`,
+        updated_by: adminUser?.id,
+      }]);
+
+      if (order?.client_id) {
+        await notifyOrgMembers({
+          orderId, clientId: order.client_id, type: 'order_status',
+          title: `Payment Request — Order #${order?.order_number || orderId.slice(0, 8)}`,
+          body: `A payment of $${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} has been requested.`,
+          supabaseClient: supabase,
+        });
+      }
+
+      setShowPaymentRequest(false);
+      setPaymentRequestAmount('');
+      setPaymentRequestNote('');
+      setStatusFeedback({ type: 'success', message: `Payment request of $${amount.toFixed(2)} sent to client.` });
+
+      // Refresh
+      const { data: messagesData } = await supabase.from('order_messages').select('*').eq('order_id', orderId).order('created_at', { ascending: true });
+      setMessages((messagesData as OrderMessage[]) || []);
+      const { data: updatesData } = await supabase.from('order_updates').select('*').eq('order_id', orderId).order('created_at', { ascending: false });
+      setUpdates((updatesData as OrderUpdate[]) || []);
+    } catch (e: any) {
+      setStatusFeedback({ type: 'error', message: e.message || 'Failed to send payment request.' });
+    } finally {
+      setIsRequestingPayment(false);
+    }
+  };
+
   // Refund state and handler
   const [showRefundForm, setShowRefundForm] = useState(false);
   const [refundAmount, setRefundAmount] = useState('');
@@ -722,7 +779,7 @@ export default function AdminOrderDetailPage() {
               </Button>
             </div>
 
-            {/* Deposit Refund Section */}
+            {/* Deposit & Refund Status */}
             {order.deposit_paid && (
               <div className="border-t border-red-200 pt-4">
                 {order.refund_issued ? (
@@ -735,54 +792,14 @@ export default function AdminOrderDetailPage() {
                       {order.refund_issued_at && (
                         <p className="text-sm text-green-700">Issued on {new Date(order.refund_issued_at).toLocaleString()}</p>
                       )}
-                      {order.refund_note && (
-                        <p className="text-sm text-green-700 mt-1">Note: {order.refund_note}</p>
-                      )}
                     </div>
-                  </div>
-                ) : !showRefundForm ? (
-                  <div className="flex items-center justify-between bg-white border border-red-200 rounded-lg p-4">
-                    <div>
-                      <p className="font-medium text-gray-900">Deposit Received: ${order.deposit_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                      <p className="text-sm text-gray-600">The client paid a deposit before cancellation. Would you like to issue a refund?</p>
-                    </div>
-                    <Button variant="primary" size="sm" onClick={() => setShowRefundForm(true)}>
-                      Issue Refund
-                    </Button>
                   </div>
                 ) : (
-                  <div className="bg-white border border-red-200 rounded-lg p-4 space-y-3">
-                    <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-gray-600" />
-                      Issue Deposit Refund
-                    </h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Input
-                        label="Refund Amount ($)"
-                        type="number"
-                        step="0.01"
-                        value={refundAmount}
-                        onChange={(e) => setRefundAmount(e.target.value)}
-                      />
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Original Deposit</p>
-                        <p className="text-lg font-bold text-gray-900">${order.deposit_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                      </div>
-                    </div>
-                    <Textarea
-                      label="Refund Note (optional)"
-                      placeholder="e.g. Full refund — order cancelled before production"
-                      value={refundNote}
-                      onChange={(e) => setRefundNote(e.target.value)}
-                      rows={2}
-                    />
-                    <div className="flex gap-3">
-                      <Button variant="secondary" onClick={() => setShowRefundForm(false)} className="flex-1">
-                        Cancel
-                      </Button>
-                      <Button variant="primary" onClick={handleIssueRefund} isLoading={isRefunding} className="flex-1">
-                        Confirm Refund of ${refundAmount ? parseFloat(refundAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
-                      </Button>
+                  <div className="flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <DollarSign className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium text-yellow-800">Deposit of ${order.deposit_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })} received</p>
+                      <p className="text-sm text-yellow-700">Use the Accounting & Billing panel on the right to issue a refund.</p>
                     </div>
                   </div>
                 )}
@@ -1295,12 +1312,12 @@ export default function AdminOrderDetailPage() {
               </CardBody>
             </Card>
 
-            {/* Accounting & Financials */}
-            <Card className="border border-gray-200">
+            {/* Accounting & Billing */}
+            <Card className="border-2 border-gray-300">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-5 h-5 text-gray-700" />
-                  <h2 className="text-lg font-semibold text-gray-900">Financials</h2>
+                  <h2 className="text-lg font-semibold text-gray-900">Accounting & Billing</h2>
                 </div>
               </CardHeader>
               <CardBody className="space-y-4">
@@ -1487,6 +1504,206 @@ export default function AdminOrderDetailPage() {
                     </div>
                   </>
                 )}
+
+                {/* ──── ACTIONS SECTION ──── */}
+                <div className="border-t-2 border-gray-200 pt-4 mt-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Actions</p>
+                  <div className="space-y-2">
+
+                    {/* Download Invoice */}
+                    {order.selected_shipping && (
+                      <div className="space-y-1">
+                        <button
+                          onClick={() => {
+                            window.open(`/api/invoices?orderId=${orderId}&type=deposit`, '_blank');
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+                        >
+                          <FileText className="w-4 h-4 text-gray-500" />
+                          Download Deposit Invoice
+                        </button>
+                        <button
+                          onClick={() => {
+                            window.open(`/api/invoices?orderId=${orderId}&type=full`, '_blank');
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+                        >
+                          <FileText className="w-4 h-4 text-gray-500" />
+                          Download Full Invoice
+                        </button>
+                        {order.deposit_paid && (
+                          <button
+                            onClick={() => {
+                              window.open(`/api/invoices?orderId=${orderId}&type=balance`, '_blank');
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
+                          >
+                            <FileText className="w-4 h-4 text-gray-500" />
+                            Download Balance Invoice
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Send Invoice to Client */}
+                    {order.selected_shipping && !sendingInvoice && !invoiceSent && (
+                      <button
+                        onClick={async () => {
+                          setSendingInvoice(true);
+                          try {
+                            const supabase = createClient();
+                            const pricePerUnit = order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit;
+                            const totalVal = (pricePerUnit || 0) * order.quantity;
+                            const depositVal = order.deposit_amount || totalVal * 0.3;
+
+                            await supabase.from('order_messages').insert([{
+                              order_id: orderId,
+                              sender_id: adminUser?.id,
+                              sender_role: 'admin',
+                              message: `📄 Invoice for Order #${order.order_number || orderId.slice(0, 8)}\n\nProduct: ${order.product_type}\nQuantity: ${order.quantity.toLocaleString()} units\nUnit Price: $${(pricePerUnit || 0).toFixed(2)}\nOrder Total: $${totalVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}\n${!order.deposit_paid ? `\n30% Deposit Due: $${depositVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : `\nDeposit Paid: $${(order.deposit_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\nRemaining Balance: $${(totalVal - (order.deposit_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}\n\nPlease review and let us know if you have any questions.`,
+                              attachments: [],
+                            }]);
+
+                            if (order.client_id) {
+                              await notifyOrgMembers({
+                                orderId, clientId: order.client_id, type: 'order_status',
+                                title: `Invoice — Order #${order.order_number || orderId.slice(0, 8)}`,
+                                body: 'An invoice has been sent for your order. Please check your messages.',
+                                supabaseClient: supabase,
+                              });
+                            }
+
+                            setInvoiceSent(true);
+                            // Refresh messages
+                            const { data: messagesData } = await supabase.from('order_messages').select('*').eq('order_id', orderId).order('created_at', { ascending: true });
+                            setMessages((messagesData as OrderMessage[]) || []);
+                          } catch (e) {
+                            setStatusFeedback({ type: 'error', message: 'Failed to send invoice.' });
+                          } finally {
+                            setSendingInvoice(false);
+                          }
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors text-left"
+                      >
+                        <Send className="w-4 h-4 text-blue-500" />
+                        Send Invoice to Client
+                      </button>
+                    )}
+                    {sendingInvoice && (
+                      <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500">
+                        <span className="animate-spin">⏳</span> Sending invoice...
+                      </div>
+                    )}
+                    {invoiceSent && (
+                      <div className="flex items-center gap-2 px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg">
+                        <CheckCircle className="w-4 h-4" /> Invoice sent to client
+                      </div>
+                    )}
+
+                    <div className="border-t border-gray-100 my-2" />
+
+                    {/* Request Payment */}
+                    {!showPaymentRequest ? (
+                      <button
+                        onClick={() => setShowPaymentRequest(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-orange-700 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors text-left"
+                      >
+                        <DollarSign className="w-4 h-4 text-orange-500" />
+                        Request Payment from Client
+                      </button>
+                    ) : (
+                      <div className="bg-orange-50 rounded-lg p-3 space-y-2 border border-orange-200">
+                        <p className="text-xs font-semibold text-orange-800">Request Payment</p>
+                        <Input
+                          label="Amount ($)"
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={paymentRequestAmount}
+                          onChange={(e) => setPaymentRequestAmount(e.target.value)}
+                        />
+                        <Textarea
+                          label="Reason"
+                          placeholder="e.g. Remaining balance, additional charges..."
+                          value={paymentRequestNote}
+                          onChange={(e) => setPaymentRequestNote(e.target.value)}
+                          rows={2}
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setShowPaymentRequest(false); setPaymentRequestAmount(''); setPaymentRequestNote(''); }}
+                            className="flex-1 px-3 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleRequestPaymentCustom}
+                            disabled={isRequestingPayment || !paymentRequestAmount}
+                            className="flex-1 px-3 py-1.5 text-xs text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                          >
+                            {isRequestingPayment ? 'Sending...' : 'Send Request'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Issue Refund (available anytime deposit was paid) */}
+                    {order.deposit_paid && !order.refund_issued && (
+                      <>
+                        {!showRefundForm ? (
+                          <button
+                            onClick={() => setShowRefundForm(true)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors text-left"
+                          >
+                            <XCircle className="w-4 h-4 text-red-500" />
+                            Issue Refund to Client
+                          </button>
+                        ) : (
+                          <div className="bg-red-50 rounded-lg p-3 space-y-2 border border-red-200">
+                            <p className="text-xs font-semibold text-red-800">Issue Refund</p>
+                            <Input
+                              label="Refund Amount ($)"
+                              type="number"
+                              step="0.01"
+                              value={refundAmount}
+                              onChange={(e) => setRefundAmount(e.target.value)}
+                            />
+                            <p className="text-xs text-gray-500">Original deposit: ${order.deposit_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                            <Textarea
+                              label="Note (optional)"
+                              placeholder="e.g. Full refund — cancelled before production"
+                              value={refundNote}
+                              onChange={(e) => setRefundNote(e.target.value)}
+                              rows={2}
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setShowRefundForm(false)}
+                                className="flex-1 px-3 py-1.5 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={handleIssueRefund}
+                                disabled={isRefunding || !refundAmount}
+                                className="flex-1 px-3 py-1.5 text-xs text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+                              >
+                                {isRefunding ? 'Processing...' : `Refund $${refundAmount ? parseFloat(refundAmount).toFixed(2) : '0.00'}`}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {order.refund_issued && (
+                      <div className="flex items-center gap-2 px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg">
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Refund of ${order.refund_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })} issued</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </CardBody>
             </Card>
 
