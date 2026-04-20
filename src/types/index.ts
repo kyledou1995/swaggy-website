@@ -107,6 +107,7 @@ export interface Order {
   custom_length?: number | null;
   custom_dimension_unit?: string | null;
   inspiration_images?: string[];
+  logo_files?: string[];
 }
 
 export interface OrderUpdate {

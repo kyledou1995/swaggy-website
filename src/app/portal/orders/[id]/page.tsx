@@ -723,6 +723,23 @@ export default function OrderDetailPage() {
                   <p className="text-gray-900">{order.notes}</p>
                 </div>
               )}
+              {/* Company Logo */}
+              {(order as any).logo_files && (order as any).logo_files.length > 0 && (
+                <div className="md:col-span-2">
+                  <p className="text-sm text-gray-500 mb-2">Company Logo</p>
+                  <div className="flex flex-wrap gap-3">
+                    {(order as any).logo_files.map((url: string, idx: number) => (
+                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
+                        <img
+                          src={url}
+                          alt={`Logo ${idx + 1}`}
+                          className="w-20 h-20 rounded-lg object-contain border border-gray-200 hover:opacity-80 transition-opacity bg-white p-1"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
               {/* Inspiration Images */}
               {(order as any).inspiration_images && (order as any).inspiration_images.length > 0 && (
                 <div className="md:col-span-2">

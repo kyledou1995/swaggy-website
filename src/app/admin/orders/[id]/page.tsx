@@ -1214,6 +1214,23 @@ export default function AdminOrderDetailPage() {
                       <p className="text-base text-gray-900 mt-1">{order.notes}</p>
                     </div>
                   )}
+                  {/* Company Logo */}
+                  {(order as any).logo_files && (order as any).logo_files.length > 0 && (
+                    <div className="col-span-2">
+                      <p className="text-sm text-gray-600 font-medium mb-2">Company Logo</p>
+                      <div className="flex flex-wrap gap-3">
+                        {(order as any).logo_files.map((url: string, idx: number) => (
+                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={url}
+                              alt={`Logo ${idx + 1}`}
+                              className="w-24 h-24 rounded-lg object-contain border border-gray-200 hover:opacity-80 transition-opacity bg-white p-1"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {/* Inspiration Images */}
                   {(order as any).inspiration_images && (order as any).inspiration_images.length > 0 && (
                     <div className="col-span-2">

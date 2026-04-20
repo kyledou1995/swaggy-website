@@ -87,6 +87,10 @@ export default function NewOrderPage() {
   const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
 
+  // Company logo upload
+  const [logoFiles, setLogoFiles] = useState<{ file: File; preview: string }[]>([]);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
   // Delivery addresses
   const [addresses, setAddresses] = useState<DeliveryAddress[]>([]);
   const [addressesLoading, setAddressesLoading] = useState(true);
@@ -293,6 +297,46 @@ export default function NewOrderPage() {
     setInspirationImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const remaining = 3 - logoFiles.length;
+    const newFiles = files.slice(0, remaining).map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+    setLogoFiles((prev) => [...prev, ...newFiles]);
+    e.target.value = '';
+  };
+
+  const removeLogoFile = (index: number) => {
+    setLogoFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadLogoFiles = async (): Promise<string[]> => {
+    if (logoFiles.length === 0) return [];
+    setUploadingLogo(true);
+
+    const urls: string[] = [];
+    for (const logo of logoFiles) {
+      const ext = logo.file.name.split('.').pop();
+      const fileName = `${userId}/logos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const { error } = await supabase.storage
+        .from('order-inspiration')
+        .upload(fileName, logo.file, { cacheControl: '3600', upsert: false });
+
+      if (!error) {
+        const { data: urlData } = supabase.storage
+          .from('order-inspiration')
+          .getPublicUrl(fileName);
+        urls.push(urlData.publicUrl);
+      }
+    }
+
+    setUploadingLogo(false);
+    return urls;
+  };
+
   const uploadInspirationImages = async (): Promise<string[]> => {
     if (inspirationImages.length === 0) return [];
     setUploadingImages(true);
@@ -436,8 +480,9 @@ export default function NewOrderPage() {
     try {
       const orderNumber = `ORD-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
 
-      // Upload inspiration images first
+      // Upload inspiration images and logo files
       const imageUrls = await uploadInspirationImages();
+      const logoUrls = await uploadLogoFiles();
 
       const { data, error } = await supabase
         .from('orders')
@@ -458,6 +503,7 @@ export default function NewOrderPage() {
           custom_length: isCustomMode && customLength ? parseFloat(customLength) : null,
           custom_dimension_unit: isCustomMode && (customWidth || customHeight || customLength) ? 'inches' : null,
           inspiration_images: imageUrls.length > 0 ? imageUrls : [],
+          logo_files: logoUrls.length > 0 ? logoUrls : [],
         })
         .select()
         .single();
@@ -909,6 +955,62 @@ export default function NewOrderPage() {
                   onChange={(e) => handleProductDetailChange('specificRequirements', e.target.value)}
                 />
 
+                {/* Company Logo Upload (available for all orders) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+                    <Upload className="w-4 h-4" />
+                    Company Logo — Optional
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Upload your company logo so we can incorporate it into the product design. Upload up to 3 files.
+                  </p>
+
+                  <div className="flex flex-wrap gap-3">
+                    {logoFiles.map((logo, idx) => (
+                      <div key={idx} className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 group">
+                        {logo.file.type.startsWith('image/') ? (
+                          <img
+                            src={logo.preview}
+                            alt={`Logo ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 p-2">
+                            <Package className="w-6 h-6 text-gray-400 mb-1" />
+                            <span className="text-[9px] text-gray-500 text-center truncate w-full">{logo.file.name}</span>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeLogoFile(idx)}
+                          className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {logoFiles.length < 3 && (
+                      <label className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition-colors">
+                        <Upload className="w-5 h-5 text-gray-400 mb-1" />
+                        <span className="text-[10px] text-gray-400 font-medium">Upload</span>
+                        <input
+                          type="file"
+                          accept=".png,.jpg,.jpeg,.svg,.ai,.eps,.pdf"
+                          multiple
+                          onChange={handleLogoUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-gray-400 mt-2">
+                    Accepted formats: PNG, JPG, SVG, AI, EPS, PDF
+                    {logoFiles.length > 0 && ` · ${logoFiles.length}/3 files added`}
+                  </p>
+                </div>
+
                 {/* Custom mode: Inspiration Images */}
                 {isCustomMode && (
                   <div>
@@ -1209,6 +1311,33 @@ export default function NewOrderPage() {
                     <div className="border-t border-gray-200 pt-4">
                       <p className="text-sm text-gray-500 mb-2">Specific Requirements</p>
                       <p className="text-gray-900 whitespace-pre-wrap">{formData.specificRequirements}</p>
+                    </div>
+                  )}
+
+                  {/* Company Logo */}
+                  {logoFiles.length > 0 && (
+                    <div className="border-t border-gray-200 pt-4">
+                      <p className="text-sm text-gray-500 mb-2 flex items-center gap-1.5">
+                        <Upload className="w-4 h-4" />
+                        Company Logo ({logoFiles.length})
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {logoFiles.map((logo, idx) => (
+                          logo.file.type.startsWith('image/') ? (
+                            <img
+                              key={idx}
+                              src={logo.preview}
+                              alt={`Logo ${idx + 1}`}
+                              className="w-16 h-16 rounded-lg object-cover border border-gray-200"
+                            />
+                          ) : (
+                            <div key={idx} className="w-16 h-16 rounded-lg border border-gray-200 bg-gray-50 flex flex-col items-center justify-center">
+                              <Package className="w-4 h-4 text-gray-400" />
+                              <span className="text-[8px] text-gray-500 truncate w-14 text-center">{logo.file.name.split('.').pop()?.toUpperCase()}</span>
+                            </div>
+                          )
+                        ))}
+                      </div>
                     </div>
                   )}
 
