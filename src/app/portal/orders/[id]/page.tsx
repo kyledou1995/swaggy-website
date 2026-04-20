@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Send, FileText, Paperclip, Truck, MapPin, Star, Plane, Ship, DollarSign, CheckCircle, CreditCard, XCircle } from 'lucide-react';
+import { Send, FileText, Paperclip, Truck, MapPin, Star, Plane, Ship, DollarSign, CheckCircle, CreditCard, XCircle, AlertTriangle } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody, CardHeader, CardFooter } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -13,7 +13,7 @@ import { StatusTimeline, TimelineStep } from '@/components/ui/StatusTimeline';
 import { createClient } from '@/lib/supabase';
 import { ORDER_STATUS_LABELS, ORDER_TIMELINE } from '@/lib/constants';
 import { notifyAdmins } from '@/lib/notifications';
-import { Order, OrderUpdate, OrderMessage, OrderSpecification, User, OrderShipment, DeliveryAddress } from '@/types';
+import { Order, OrderStatus, OrderUpdate, OrderMessage, OrderSpecification, User, OrderShipment, DeliveryAddress } from '@/types';
 
 const getStatusVariant = (status: string) => {
   if (['delivered', 'sample_approved'].includes(status)) return 'success';
@@ -45,6 +45,9 @@ export default function OrderDetailPage() {
   const [changingQuote, setChangingQuote] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [showVoidConfirm, setShowVoidConfirm] = useState(false);
+  const [voidReason, setVoidReason] = useState('');
+  const [voidLoading, setVoidLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -398,6 +401,60 @@ export default function OrderDetailPage() {
       console.error('Error creating payment:', error);
     } finally {
       setPaymentLoading(false);
+    }
+  };
+
+  // Statuses where the client can still void the order (up to and including deposit_paid)
+  const VOIDABLE_STATUSES: OrderStatus[] = [
+    'draft', 'submitted', 'under_review', 'sourcing', 'quote_ready',
+    'quote_accepted', 'deposit_required', 'deposit_paid',
+  ];
+  const canVoidOrder = VOIDABLE_STATUSES.includes(order.status) && order.status !== 'cancelled';
+
+  const handleVoidOrder = async () => {
+    if (!user || !order) return;
+    setVoidLoading(true);
+
+    try {
+      const supabase = createClient();
+
+      await supabase.from('orders').update({
+        status: 'cancelled',
+        cancellation_reason: voidReason || 'Cancelled by client',
+        cancelled_at: new Date().toISOString(),
+        cancelled_by: user.id,
+      }).eq('id', orderId);
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: 'cancelled',
+        message: `Order voided by client${voidReason ? `: ${voidReason}` : '.'}`,
+        created_by: user.id,
+      }]);
+
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: user.id,
+        sender_role: 'client',
+        message: `I would like to cancel this order.${voidReason ? ` Reason: ${voidReason}` : ''}`,
+        attachments: [],
+      }]);
+
+      await notifyAdmins({
+        orderId,
+        type: 'order_status',
+        title: `Order Voided — #${order.order_number || orderId.slice(0, 8)}`,
+        body: `${user.full_name} cancelled their order.${voidReason ? ` Reason: ${voidReason}` : ''}`,
+        supabaseClient: supabase,
+      });
+
+      setOrder({ ...order, status: 'cancelled' as OrderStatus, cancellation_reason: voidReason || 'Cancelled by client', cancelled_at: new Date().toISOString(), cancelled_by: user.id });
+      setShowVoidConfirm(false);
+      setVoidReason('');
+    } catch (error) {
+      console.error('Error voiding order:', error);
+    } finally {
+      setVoidLoading(false);
     }
   };
 
@@ -993,6 +1050,59 @@ export default function OrderDetailPage() {
                 soon as possible.
               </p>
             </CardBody>
+          </Card>
+        )}
+
+        {/* Void Order */}
+        {canVoidOrder && !showVoidConfirm && (
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowVoidConfirm(true)}
+              className="text-sm text-red-500 hover:text-red-700 font-medium underline underline-offset-2"
+            >
+              Cancel Order
+            </button>
+          </div>
+        )}
+        {showVoidConfirm && (
+          <Card className="border-2 border-red-300 bg-red-50">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <h2 className="text-lg font-bold text-red-800">Cancel Order</h2>
+              </div>
+              <p className="text-sm text-red-700 mt-1">
+                Are you sure you want to cancel this order? This action cannot be undone.
+                {order.deposit_paid && ' Since a deposit has been paid, our team will review your refund request.'}
+              </p>
+            </CardHeader>
+            <CardBody>
+              <Textarea
+                placeholder="Reason for cancellation (optional)"
+                rows={3}
+                value={voidReason}
+                onChange={(e) => setVoidReason(e.target.value)}
+              />
+            </CardBody>
+            <CardFooter>
+              <div className="flex gap-3">
+                <Button
+                  variant="primary"
+                  onClick={handleVoidOrder}
+                  isLoading={voidLoading}
+                  className="!bg-red-600 hover:!bg-red-700"
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Confirm Cancellation
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => { setShowVoidConfirm(false); setVoidReason(''); }}
+                >
+                  Keep Order
+                </Button>
+              </div>
+            </CardFooter>
           </Card>
         )}
 
