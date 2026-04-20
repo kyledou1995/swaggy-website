@@ -310,6 +310,18 @@ export default function SettingsPage() {
           .eq('organization_id', organizationId);
       }
 
+      // Get the user's organization_id from profile if we don't have it
+      let orgId = organizationId;
+      if (!orgId) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('organization_id')
+          .eq('id', user.id)
+          .single();
+        orgId = profile?.organization_id || user.id;
+        setOrganizationId(orgId);
+      }
+
       if (editingAddressId) {
         // Update existing
         const { error } = await supabase
@@ -333,7 +345,7 @@ export default function SettingsPage() {
         const { error } = await supabase
           .from('delivery_addresses')
           .insert({
-            organization_id: organizationId,
+            organization_id: orgId,
             label: addressForm.label.trim(),
             address_line1: addressForm.address_line1.trim(),
             address_line2: addressForm.address_line2.trim(),
@@ -361,7 +373,7 @@ export default function SettingsPage() {
       setTimeout(() => setAddressSuccess(''), 4000);
     } catch (err: any) {
       console.error('Error saving address:', err);
-      setAddressError('Failed to save address. Please try again.');
+      setAddressError(err.message || 'Failed to save address. Please try again.');
     } finally {
       setAddressSaving(false);
     }
