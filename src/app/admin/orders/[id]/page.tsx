@@ -268,6 +268,41 @@ export default function AdminOrderDetailPage() {
     }
   };
 
+  const handleConfirmFinalPayment = async () => {
+    setIsLoadingStatus(true);
+    try {
+      const supabase = createClient();
+      await supabase.from('orders').update({
+        final_payment_paid: true,
+        final_payment_paid_at: new Date().toISOString(),
+        status: 'preparing_to_ship',
+      }).eq('id', orderId);
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: 'preparing_to_ship',
+        message: 'Final payment confirmed. Your order is now being prepared for shipment.',
+        created_by: adminUser?.id,
+      }]);
+
+      setOrder({ ...order!, status: 'preparing_to_ship' as any, final_payment_paid: true });
+      setStatusFeedback({ type: 'success', message: 'Final payment confirmed! Order moved to Preparing to Ship.' });
+
+      if (order?.client_id) {
+        await notifyOrgMembers({
+          orderId, clientId: order.client_id, type: 'order_status',
+          title: `Payment Confirmed — Order #${order.order_number || orderId.slice(0, 8)}`,
+          body: 'Your final payment has been confirmed. We are now preparing your order for shipment.',
+          supabaseClient: supabase,
+        });
+      }
+    } catch (error: any) {
+      setStatusFeedback({ type: 'error', message: error.message || 'Failed to confirm final payment.' });
+    } finally {
+      setIsLoadingStatus(false);
+    }
+  };
+
   const handleStatusUpdate = async () => {
     if (!newStatus || !updateMessage.trim()) {
       setStatusFeedback({ type: 'error', message: 'Please select a status and enter a message.' });
@@ -1147,6 +1182,33 @@ export default function AdminOrderDetailPage() {
                   </p>
                   <Button variant="primary" onClick={handleConfirmDeposit} isLoading={isLoadingStatus}>
                     Manually Confirm Deposit Received
+                  </Button>
+                </CardBody>
+              </Card>
+            )}
+
+            {/* Final Payment Confirmation Card */}
+            {order.status === 'final_payment_required' && (
+              <Card className="border-2 border-orange-200 bg-orange-50">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-orange-600" />
+                    <h2 className="text-lg font-semibold text-gray-900">Awaiting Final Payment</h2>
+                  </div>
+                </CardHeader>
+                <CardBody>
+                  <p className="text-sm text-gray-700 mb-3">
+                    The remaining balance of{' '}
+                    <span className="font-bold">
+                      ${(order.final_payment_amount || (((order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit) || 0) * order.quantity - (order.deposit_amount || 0))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>{' '}
+                    is due before shipment.
+                  </p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Payment will be processed automatically via Stripe. You can also manually confirm if payment was received via wire or other method.
+                  </p>
+                  <Button variant="primary" onClick={handleConfirmFinalPayment} isLoading={isLoadingStatus}>
+                    Manually Confirm Final Payment Received
                   </Button>
                 </CardBody>
               </Card>
