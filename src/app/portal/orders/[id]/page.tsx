@@ -550,10 +550,46 @@ export default function OrderDetailPage() {
                   {order.product_description}
                 </p>
               </div>
+              {/* Custom Dimensions */}
+              {((order as any).custom_width || (order as any).custom_height || (order as any).custom_length) && (
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Dimensions</p>
+                  <p className="text-gray-900 font-semibold">
+                    {[(order as any).custom_width && `${(order as any).custom_width}"W`,
+                      (order as any).custom_height && `${(order as any).custom_height}"H`,
+                      (order as any).custom_length && `${(order as any).custom_length}"L`]
+                      .filter(Boolean)
+                      .join(' × ')}
+                  </p>
+                </div>
+              )}
+              {(order as any).selected_size && (
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Selected Size</p>
+                  <p className="text-gray-900">{(order as any).selected_size}</p>
+                </div>
+              )}
               {order.notes && (
                 <div className="md:col-span-2">
                   <p className="text-sm text-gray-500 mb-1">Notes</p>
                   <p className="text-gray-900">{order.notes}</p>
+                </div>
+              )}
+              {/* Inspiration Images */}
+              {(order as any).inspiration_images && (order as any).inspiration_images.length > 0 && (
+                <div className="md:col-span-2">
+                  <p className="text-sm text-gray-500 mb-2">Inspiration Images</p>
+                  <div className="flex flex-wrap gap-3">
+                    {(order as any).inspiration_images.map((url: string, idx: number) => (
+                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
+                        <img
+                          src={url}
+                          alt={`Inspiration ${idx + 1}`}
+                          className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity"
+                        />
+                      </a>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

@@ -85,6 +85,12 @@ export interface Order {
   // Prefixed product fields
   prefixed_product_id?: string | null;
   selected_size?: string | null;
+  // Custom dimension fields
+  custom_width?: number | null;
+  custom_height?: number | null;
+  custom_length?: number | null;
+  custom_dimension_unit?: string | null;
+  inspiration_images?: string[];
 }
 
 export interface OrderUpdate {

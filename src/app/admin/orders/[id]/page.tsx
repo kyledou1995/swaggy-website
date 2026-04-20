@@ -850,10 +850,47 @@ export default function AdminOrderDetailPage() {
                       {order.product_description}
                     </p>
                   </div>
+                  {/* Custom Dimensions */}
+                  {(order as any).custom_width || (order as any).custom_height || (order as any).custom_length ? (
+                    <div>
+                      <p className="text-sm text-gray-600 font-medium">Dimensions</p>
+                      <p className="text-base text-gray-900 mt-1 font-semibold">
+                        {[(order as any).custom_width && `${(order as any).custom_width}"W`,
+                          (order as any).custom_height && `${(order as any).custom_height}"H`,
+                          (order as any).custom_length && `${(order as any).custom_length}"L`]
+                          .filter(Boolean)
+                          .join(' × ')}
+                      </p>
+                    </div>
+                  ) : null}
+                  {/* Selected prefixed product */}
+                  {(order as any).selected_size && (
+                    <div>
+                      <p className="text-sm text-gray-600 font-medium">Selected Size</p>
+                      <p className="text-base text-gray-900 mt-1">{(order as any).selected_size}</p>
+                    </div>
+                  )}
                   {order.notes && (
                     <div className="col-span-2">
                       <p className="text-sm text-gray-600 font-medium">Notes</p>
                       <p className="text-base text-gray-900 mt-1">{order.notes}</p>
+                    </div>
+                  )}
+                  {/* Inspiration Images */}
+                  {(order as any).inspiration_images && (order as any).inspiration_images.length > 0 && (
+                    <div className="col-span-2">
+                      <p className="text-sm text-gray-600 font-medium mb-2">Inspiration Images</p>
+                      <div className="flex flex-wrap gap-3">
+                        {(order as any).inspiration_images.map((url: string, idx: number) => (
+                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={url}
+                              alt={`Inspiration ${idx + 1}`}
+                              className="w-24 h-24 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity"
+                            />
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

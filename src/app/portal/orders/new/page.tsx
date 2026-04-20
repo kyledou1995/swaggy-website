@@ -17,6 +17,9 @@ import {
   Clock,
   Pencil,
   Image as ImageIcon,
+  Upload,
+  X,
+  Ruler,
 } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody, CardHeader, CardFooter } from '@/components/ui/Card';
@@ -73,6 +76,16 @@ export default function NewOrderPage() {
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [showDeselectWarning, setShowDeselectWarning] = useState(false);
   const [pendingFieldEdit, setPendingFieldEdit] = useState<{ field: keyof NewOrderFormData; value: string } | null>(null);
+
+  // Custom product dimensions
+  const [customWidth, setCustomWidth] = useState('');
+  const [customHeight, setCustomHeight] = useState('');
+  const [customLength, setCustomLength] = useState('');
+
+  // Inspiration images
+  const [inspirationImages, setInspirationImages] = useState<{ file: File; preview: string }[]>([]);
+  const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   // Delivery addresses
   const [addresses, setAddresses] = useState<DeliveryAddress[]>([]);
@@ -258,6 +271,53 @@ export default function NewOrderPage() {
     setPendingFieldEdit(null);
   };
 
+  // Inspiration image handlers
+  const handleInspirationUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const remaining = 5 - inspirationImages.length;
+    const toAdd = files.slice(0, remaining);
+
+    toAdd.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setInspirationImages((prev) => [...prev, { file, preview: reader.result as string }]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Reset input so same file can be re-selected
+    e.target.value = '';
+  };
+
+  const removeInspirationImage = (index: number) => {
+    setInspirationImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadInspirationImages = async (): Promise<string[]> => {
+    if (inspirationImages.length === 0) return [];
+    setUploadingImages(true);
+
+    const urls: string[] = [];
+    for (const img of inspirationImages) {
+      const ext = img.file.name.split('.').pop();
+      const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const { error } = await supabase.storage
+        .from('order-inspiration')
+        .upload(fileName, img.file, { cacheControl: '3600', upsert: false });
+
+      if (!error) {
+        const { data: urlData } = supabase.storage
+          .from('order-inspiration')
+          .getPublicUrl(fileName);
+        urls.push(urlData.publicUrl);
+      }
+    }
+
+    setUploadingImages(false);
+    return urls;
+  };
+
   const validateStep1 = () => {
     const newErrors: Partial<NewOrderFormData> = {};
     if (!formData.productType) newErrors.productType = 'Product type is required';
@@ -376,6 +436,9 @@ export default function NewOrderPage() {
     try {
       const orderNumber = `ORD-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
 
+      // Upload inspiration images first
+      const imageUrls = await uploadInspirationImages();
+
       const { data, error } = await supabase
         .from('orders')
         .insert({
@@ -390,6 +453,11 @@ export default function NewOrderPage() {
           notes: formData.specificRequirements || '',
           prefixed_product_id: selectedPrefixed?.id || null,
           selected_size: selectedSize || null,
+          custom_width: isCustomMode && customWidth ? parseFloat(customWidth) : null,
+          custom_height: isCustomMode && customHeight ? parseFloat(customHeight) : null,
+          custom_length: isCustomMode && customLength ? parseFloat(customLength) : null,
+          custom_dimension_unit: isCustomMode && (customWidth || customHeight || customLength) ? 'inches' : null,
+          inspiration_images: imageUrls.length > 0 ? imageUrls : [],
         })
         .select()
         .single();
@@ -778,14 +846,116 @@ export default function NewOrderPage() {
                   onChange={(e) => handleProductDetailChange('productDescription', e.target.value)}
                   error={errors.productDescription}
                 />
+
+                {/* Custom mode: Product Dimensions */}
+                {isCustomMode && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+                      <Ruler className="w-4 h-4" />
+                      Product Dimensions (inches) — Optional
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Width</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="W"
+                          value={customWidth}
+                          onChange={(e) => setCustomWidth(e.target.value)}
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Height</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="H"
+                          value={customHeight}
+                          onChange={(e) => setCustomHeight(e.target.value)}
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Length</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="L"
+                          value={customLength}
+                          onChange={(e) => setCustomLength(e.target.value)}
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      Enter the desired dimensions of your product in inches (Width × Height × Length)
+                    </p>
+                  </div>
+                )}
+
                 <Textarea
                   label="Specific Requirements (Optional)"
                   placeholder="Any additional specifications, certifications, or requirements for this order..."
                   rows={4}
                   value={formData.specificRequirements}
                   onChange={(e) => handleProductDetailChange('specificRequirements', e.target.value)}
-                  helperText="You can upload reference images after submitting the order."
                 />
+
+                {/* Custom mode: Inspiration Images */}
+                {isCustomMode && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4" />
+                      Inspiration Images — Optional
+                    </label>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Upload up to 5 reference photos to help us understand your vision. These could be similar products, design mockups, or anything that inspires your order.
+                    </p>
+
+                    {/* Image grid */}
+                    <div className="flex flex-wrap gap-3">
+                      {inspirationImages.map((img, idx) => (
+                        <div key={idx} className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 group">
+                          <img
+                            src={img.preview}
+                            alt={`Inspiration ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeInspirationImage(idx)}
+                            className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Upload button */}
+                      {inspirationImages.length < 5 && (
+                        <label className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition-colors">
+                          <Upload className="w-5 h-5 text-gray-400 mb-1" />
+                          <span className="text-[10px] text-gray-400 font-medium">Upload</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={handleInspirationUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    {inspirationImages.length > 0 && (
+                      <p className="text-xs text-gray-400 mt-2">
+                        {inspirationImages.length}/5 images added · Hover over an image to remove it
+                      </p>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
@@ -1014,10 +1184,45 @@ export default function NewOrderPage() {
                     <p className="text-gray-900 whitespace-pre-wrap">{formData.productDescription}</p>
                   </div>
 
+                  {/* Custom dimensions */}
+                  {isCustomMode && (customWidth || customHeight || customLength) && (
+                    <div className="border-t border-gray-200 pt-4">
+                      <p className="text-sm text-gray-500 mb-2 flex items-center gap-1.5">
+                        <Ruler className="w-4 h-4" />
+                        Product Dimensions
+                      </p>
+                      <p className="font-semibold text-gray-900">
+                        {[customWidth && `${customWidth}"W`, customHeight && `${customHeight}"H`, customLength && `${customLength}"L`]
+                          .filter(Boolean)
+                          .join(' × ')}
+                      </p>
+                    </div>
+                  )}
+
                   {formData.specificRequirements && (
                     <div className="border-t border-gray-200 pt-4">
                       <p className="text-sm text-gray-500 mb-2">Specific Requirements</p>
                       <p className="text-gray-900 whitespace-pre-wrap">{formData.specificRequirements}</p>
+                    </div>
+                  )}
+
+                  {/* Inspiration images */}
+                  {inspirationImages.length > 0 && (
+                    <div className="border-t border-gray-200 pt-4">
+                      <p className="text-sm text-gray-500 mb-2 flex items-center gap-1.5">
+                        <ImageIcon className="w-4 h-4" />
+                        Inspiration Images ({inspirationImages.length})
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {inspirationImages.map((img, idx) => (
+                          <img
+                            key={idx}
+                            src={img.preview}
+                            alt={`Inspiration ${idx + 1}`}
+                            className="w-16 h-16 rounded-lg object-cover border border-gray-200"
+                          />
+                        ))}
+                      </div>
                     </div>
                   )}
 
