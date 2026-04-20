@@ -41,6 +41,8 @@ export default function OrderDetailPage() {
   const [newMessage, setNewMessage] = useState('');
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [changesLoading, setChangesLoading] = useState(false);
+  const [showChangesForm, setShowChangesForm] = useState(false);
+  const [changesMessage, setChangesMessage] = useState('');
   const [selectedQuoteOption, setSelectedQuoteOption] = useState<'air' | 'ocean' | null>(null);
   const [changingQuote, setChangingQuote] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -290,6 +292,11 @@ export default function OrderDetailPage() {
         setApprovalLoading(false);
       }
     } else {
+      if (!changesMessage.trim()) {
+        setShowChangesForm(true);
+        return;
+      }
+
       setChangesLoading(true);
       try {
         // Update order status to action_required
@@ -301,18 +308,42 @@ export default function OrderDetailPage() {
         await supabase.from('order_updates').insert([{
           order_id: orderId,
           status: 'action_required',
-          message: 'Client requested changes to samples.',
+          message: `Client requested changes to samples: ${changesMessage}`,
           created_by: user.id,
         }]);
+
+        // Send the changes message in chat
+        await supabase.from('order_messages').insert([{
+          order_id: orderId,
+          sender_id: user.id,
+          sender_role: 'client',
+          message: `Sample change request: ${changesMessage}`,
+          attachments: [],
+        }]);
+
+        const response: OrderMessage = {
+          id: `msg_${Date.now()}`,
+          order_id: orderId,
+          sender_id: user.id,
+          sender_role: 'client',
+          message: `Sample change request: ${changesMessage}`,
+          attachments: [],
+          created_at: new Date().toISOString(),
+        };
+        setAllMessages([...allMessages, response]);
 
         // Notify admins
         await notifyAdmins({
           orderId,
           type: 'order_status',
           title: `Sample Changes Requested — #${order!.order_number || orderId.slice(0, 8)}`,
-          body: `${user.full_name} requested changes to the samples.`,
+          body: `${user.full_name} requested changes to the samples: "${changesMessage}"`,
           supabaseClient: supabase,
         });
+
+        setOrder({ ...order!, status: 'action_required' });
+        setShowChangesForm(false);
+        setChangesMessage('');
       } catch (error) {
         console.error('Error requesting changes:', error);
       } finally {
@@ -1305,12 +1336,42 @@ export default function OrderDetailPage() {
                   </Button>
                   <Button
                     variant="secondary"
-                    isLoading={changesLoading}
-                    onClick={() => handleApproval(false)}
+                    onClick={() => setShowChangesForm(!showChangesForm)}
                   >
                     Request Changes
                   </Button>
                 </div>
+
+                {showChangesForm && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      What changes are needed?
+                    </label>
+                    <textarea
+                      value={changesMessage}
+                      onChange={(e) => setChangesMessage(e.target.value)}
+                      placeholder="Describe the changes you'd like to the sample (e.g., color adjustment, material change, logo placement, etc.)"
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                    />
+                    <div className="flex gap-3 mt-3">
+                      <Button
+                        variant="primary"
+                        isLoading={changesLoading}
+                        onClick={() => handleApproval(false)}
+                        disabled={!changesMessage.trim()}
+                      >
+                        Submit Change Request
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => { setShowChangesForm(false); setChangesMessage(''); }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Option 2: Request Physical Samples */}
