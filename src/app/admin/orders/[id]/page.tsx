@@ -181,7 +181,7 @@ export default function AdminOrderDetailPage() {
         order_id: orderId,
         status: 'quote_ready',
         message: `Quote submitted: Air freight $${parseFloat(quoteAirPrice).toFixed(2)}/unit (${quoteAirProductionDays}d production + ${quoteAirShippingDays}d shipping) | Ocean freight $${parseFloat(quoteOceanPrice).toFixed(2)}/unit (${quoteOceanProductionDays}d production + ${quoteOceanShippingDays}d shipping)`,
-        updated_by: adminUser?.id,
+        created_by: adminUser?.id,
       }]);
 
       // Send message to client
@@ -247,7 +247,7 @@ export default function AdminOrderDetailPage() {
         order_id: orderId,
         status: 'deposit_paid',
         message: 'Deposit payment confirmed. Your order is now being processed.',
-        updated_by: adminUser?.id,
+        created_by: adminUser?.id,
       }]);
 
       setOrder({ ...order!, status: 'deposit_paid' as any, deposit_paid: true });
@@ -295,7 +295,7 @@ export default function AdminOrderDetailPage() {
           order_id: orderId,
           status: newStatus,
           message: updateMessage,
-          updated_by: adminUser?.id,
+          created_by: adminUser?.id,
         }]);
 
       if (updateError) throw updateError;
@@ -399,7 +399,7 @@ export default function AdminOrderDetailPage() {
         order_id: orderId,
         status: actionStatus,
         message: actionMessage,
-        updated_by: adminUser?.id,
+        created_by: adminUser?.id,
       }]);
 
       // Send message to client
@@ -487,7 +487,7 @@ export default function AdminOrderDetailPage() {
         order_id: orderId,
         status: 'cancelled',
         message: `Order cancelled. Reason: ${cancelReason}`,
-        updated_by: adminUser?.id,
+        created_by: adminUser?.id,
       }]);
 
       await supabase.from('order_messages').insert([{
@@ -542,7 +542,7 @@ export default function AdminOrderDetailPage() {
         order_id: orderId,
         status: 'under_review',
         message: 'Order has been reactivated and is now under review.',
-        updated_by: adminUser?.id,
+        created_by: adminUser?.id,
       }]);
 
       if (order?.client_id) {
@@ -596,7 +596,7 @@ export default function AdminOrderDetailPage() {
         order_id: orderId,
         status: order?.status || 'action_required',
         message: `Payment of $${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} requested from client.${reason ? ` Reason: ${reason}` : ''}`,
-        updated_by: adminUser?.id,
+        created_by: adminUser?.id,
       }]);
 
       if (order?.client_id) {
@@ -660,7 +660,7 @@ export default function AdminOrderDetailPage() {
         order_id: orderId,
         status: 'cancelled',
         message: `Refund of $${parseFloat(refundAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })} has been issued.${refundNote ? ` Note: ${refundNote}` : ''}`,
-        updated_by: adminUser?.id,
+        created_by: adminUser?.id,
       }]);
 
       await supabase.from('order_messages').insert([{

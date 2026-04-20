@@ -239,7 +239,7 @@ export default function OrderDetailPage() {
           order_id: orderId,
           status: 'sample_approved',
           message: 'Client approved the samples.',
-          updated_by: user.id,
+          created_by: user.id,
         }]);
 
         // Send approval message
@@ -290,7 +290,7 @@ export default function OrderDetailPage() {
           order_id: orderId,
           status: 'action_required',
           message: 'Client requested changes to samples.',
-          updated_by: user.id,
+          created_by: user.id,
         }]);
 
         // Notify admins
@@ -330,7 +330,7 @@ export default function OrderDetailPage() {
         order_id: orderId,
         status: 'deposit_required',
         message: `Client selected DDP ${selectedQuoteOption === 'air' ? 'Air' : 'Ocean'} Freight at $${pricePerUnit?.toFixed(2)}/unit. 30% deposit of $${depositAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} required.`,
-        updated_by: user.id,
+        created_by: user.id,
       }]);
 
       await supabase.from('order_messages').insert([{
