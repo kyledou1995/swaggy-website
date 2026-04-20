@@ -1523,7 +1523,7 @@ export default function AdminOrderDetailPage() {
             )}
 
             {/* Sample Approval Form (admin uploads photos + sets price/shipping) */}
-            {(showSampleForm || (order.status === 'sample_production' && (!order.sample_images || order.sample_images.length === 0))) && (
+            {(showSampleForm || order.status === 'sample_production') && (
               <Card className="border-2 border-purple-200 bg-purple-50">
                 <CardHeader>
                   <div className="flex items-center gap-2">
