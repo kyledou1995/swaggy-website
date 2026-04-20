@@ -8,6 +8,7 @@ interface CreateNotificationParams {
   title: string;
   body: string;
   orderId?: string;
+  targetRole?: 'client' | 'admin';
   supabaseClient?: SupabaseClient;
 }
 
@@ -24,6 +25,7 @@ export async function createNotification(params: CreateNotificationParams) {
     title: params.title,
     body: params.body,
     order_id: params.orderId || null,
+    target_role: params.targetRole || 'client',
     is_read: false,
     email_sent: false,
   });
@@ -39,7 +41,7 @@ export async function createNotification(params: CreateNotificationParams) {
  * Create notifications for all members of an organization.
  * Used when an order status changes or a message is received,
  * since org members share orders.
- * Accepts an optional supabaseClient to reuse an authenticated session.
+ * These are CLIENT-facing notifications.
  */
 export async function notifyOrgMembers({
   orderId,
@@ -67,7 +69,7 @@ export async function notifyOrgMembers({
 
   if (!profile?.organization_id) {
     // Fallback: just notify the order owner
-    return createNotification({ userId: clientId, type, title, body, orderId, supabaseClient: supabase });
+    return createNotification({ userId: clientId, type, title, body, orderId, targetRole: 'client', supabaseClient: supabase });
   }
 
   // Get all org members
@@ -78,7 +80,7 @@ export async function notifyOrgMembers({
     .eq('invite_status', 'active');
 
   if (!members || members.length === 0) {
-    return createNotification({ userId: clientId, type, title, body, orderId, supabaseClient: supabase });
+    return createNotification({ userId: clientId, type, title, body, orderId, targetRole: 'client', supabaseClient: supabase });
   }
 
   // Filter members based on their notification preferences
@@ -95,6 +97,7 @@ export async function notifyOrgMembers({
     title,
     body,
     order_id: orderId,
+    target_role: 'client',
     is_read: false,
     email_sent: false,
   }));
@@ -113,6 +116,7 @@ export async function notifyOrgMembers({
 /**
  * Create notifications for all admin users.
  * Used when a client takes an action (new order, message, payment, etc.)
+ * These are ADMIN-facing notifications.
  */
 export async function notifyAdmins({
   orderId,
@@ -146,6 +150,7 @@ export async function notifyAdmins({
     title,
     body,
     order_id: orderId || null,
+    target_role: 'admin',
     is_read: false,
     email_sent: false,
   }));

@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
           title: `Deposit Confirmed — Order #${orderData.order_number || orderId.slice(0, 8)}`,
           body: 'Your deposit payment has been confirmed. We are now proceeding with your order.',
           order_id: orderId,
+          target_role: 'client',
           is_read: false,
           email_sent: false,
         }]);
@@ -96,6 +97,7 @@ export async function POST(request: NextRequest) {
               title: `Deposit Received — #${orderData.order_number || orderId.slice(0, 8)}`,
               body: `Client paid the deposit of $${(session.amount_total ? (session.amount_total / 100).toLocaleString(undefined, { minimumFractionDigits: 2 }) : 'N/A')}. Order is now active.`,
               order_id: orderId,
+              target_role: 'admin',
               is_read: false,
               email_sent: false,
             }))

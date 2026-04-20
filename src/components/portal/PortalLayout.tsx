@@ -91,6 +91,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         .from('notifications')
         .select('type')
         .eq('user_id', userId)
+        .eq('target_role', 'client')
         .eq('is_read', false);
 
       if (notifications) {

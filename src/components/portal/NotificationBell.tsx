@@ -26,6 +26,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
       .from('notifications')
       .select('*')
       .eq('user_id', userId)
+      .eq('target_role', 'client')
       .order('created_at', { ascending: false })
       .limit(20);
 

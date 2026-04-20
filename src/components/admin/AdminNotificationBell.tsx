@@ -24,6 +24,7 @@ export const AdminNotificationBell: React.FC<AdminNotificationBellProps> = ({ us
       .from('notifications')
       .select('*')
       .eq('user_id', userId)
+      .eq('target_role', 'admin')
       .order('created_at', { ascending: false })
       .limit(30);
 
