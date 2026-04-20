@@ -494,7 +494,7 @@ export default function OrderDetailPage() {
                   Target Unit Price
                 </p>
                 <p className="font-semibold text-gray-900">
-                  ${order.target_price.toFixed(2)}
+                  {order.target_price ? `$${order.target_price.toFixed(2)}` : 'Not specified'}
                 </p>
               </div>
               <div>

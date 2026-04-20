@@ -833,7 +833,7 @@ export default function AdminOrderDetailPage() {
                   <div>
                     <p className="text-sm text-gray-600 font-medium">Target Price</p>
                     <p className="text-base font-semibold text-gray-900 mt-1">
-                      ${order.target_price.toFixed(2)} per unit
+                      {order.target_price ? `$${order.target_price.toFixed(2)} per unit` : 'Not specified'}
                     </p>
                   </div>
                   <div>

@@ -160,7 +160,7 @@ export default function OrdersPage() {
                       </div>
                       <div>
                         <p className="text-gray-500 text-xs">Target Price</p>
-                        <p className="font-semibold text-gray-900">${order.target_price.toFixed(2)}</p>
+                        <p className="font-semibold text-gray-900">{order.target_price ? `$${order.target_price.toFixed(2)}` : '—'}</p>
                       </div>
                       <div>
                         <p className="text-gray-500 text-xs">Delivery Date</p>
