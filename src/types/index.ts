@@ -82,6 +82,9 @@ export interface Order {
   refund_issued?: boolean;
   refund_issued_at?: string | null;
   refund_note?: string | null;
+  // Prefixed product fields
+  prefixed_product_id?: string | null;
+  selected_size?: string | null;
 }
 
 export interface OrderUpdate {
@@ -154,6 +157,28 @@ export interface AppNotification {
   is_read: boolean;
   email_sent: boolean;
   created_at: string;
+}
+
+export interface PrefixedProductSize {
+  size: string;
+  price: number;
+}
+
+export interface PrefixedProduct {
+  id: string;
+  product_type: string;
+  name: string;
+  description: string;
+  material: string;
+  sizes: PrefixedProductSize[];
+  estimated_price_min: number | null;
+  estimated_price_max: number | null;
+  estimated_production_days: number | null;
+  sku: string;
+  image_url: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface OrderShipment {

@@ -13,6 +13,10 @@ import {
   Star,
   AlertCircle,
   SplitSquareVertical,
+  Package,
+  Clock,
+  Pencil,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody, CardHeader, CardFooter } from '@/components/ui/Card';
@@ -24,7 +28,7 @@ import { Badge } from '@/components/ui/Badge';
 import { createClient } from '@/lib/supabase';
 import { notifyAdmins } from '@/lib/notifications';
 import { PRODUCT_TYPES } from '@/lib/constants';
-import { DeliveryAddress } from '@/types';
+import { DeliveryAddress, PrefixedProduct } from '@/types';
 
 interface NewOrderFormData {
   productType: string;
@@ -60,6 +64,15 @@ export default function NewOrderPage() {
   const [userEmail, setUserEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [userId, setUserId] = useState('');
+
+  // Prefixed product selection
+  const [prefixedProducts, setPrefixedProducts] = useState<PrefixedProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [selectedPrefixed, setSelectedPrefixed] = useState<PrefixedProduct | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const [showDeselectWarning, setShowDeselectWarning] = useState(false);
+  const [pendingFieldEdit, setPendingFieldEdit] = useState<{ field: keyof NewOrderFormData; value: string } | null>(null);
 
   // Delivery addresses
   const [addresses, setAddresses] = useState<DeliveryAddress[]>([]);
@@ -115,11 +128,134 @@ export default function NewOrderPage() {
 
   const [errors, setErrors] = useState<Partial<NewOrderFormData>>({});
 
+  // Fetch prefixed products when product type changes
+  useEffect(() => {
+    if (!formData.productType) {
+      setPrefixedProducts([]);
+      setSelectedPrefixed(null);
+      setSelectedSize('');
+      setIsCustomMode(false);
+      return;
+    }
+
+    const fetchProducts = async () => {
+      setLoadingProducts(true);
+      const { data } = await supabase
+        .from('prefixed_products')
+        .select('*')
+        .eq('product_type', formData.productType)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      const products = (data as PrefixedProduct[]) || [];
+      setPrefixedProducts(products);
+      setLoadingProducts(false);
+
+      // If no prefixed products exist for this type, go straight to custom mode
+      if (products.length === 0) {
+        setIsCustomMode(true);
+        setSelectedPrefixed(null);
+        setSelectedSize('');
+      } else {
+        // Reset selection when product type changes
+        setIsCustomMode(false);
+        setSelectedPrefixed(null);
+        setSelectedSize('');
+      }
+    };
+
+    fetchProducts();
+  }, [formData.productType]);
+
   const handleInputChange = (field: keyof NewOrderFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: '' }));
     }
+  };
+
+  const handleProductTypeChange = (value: string) => {
+    handleInputChange('productType', value);
+    // Clear product-related fields when type changes
+    setFormData((prev) => ({
+      ...prev,
+      productType: value,
+      productDescription: '',
+      specificRequirements: '',
+    }));
+    setSelectedPrefixed(null);
+    setSelectedSize('');
+    setIsCustomMode(false);
+  };
+
+  const selectPrefixedProduct = (product: PrefixedProduct) => {
+    setSelectedPrefixed(product);
+    setSelectedSize(product.sizes.length === 1 ? product.sizes[0].size : '');
+    setIsCustomMode(false);
+
+    // Auto-fill product details
+    const sizeList = product.sizes.map((s) => s.size).join(', ');
+    const priceRange =
+      product.estimated_price_min != null && product.estimated_price_max != null
+        ? `$${product.estimated_price_min.toFixed(2)} – $${product.estimated_price_max.toFixed(2)} per unit`
+        : '';
+    const prodTime = product.estimated_production_days
+      ? `Estimated production: ${product.estimated_production_days} days`
+      : '';
+
+    const description = [
+      `${product.name} (SKU: ${product.sku})`,
+      `Material: ${product.material}`,
+      `Available sizes: ${sizeList}`,
+      priceRange,
+      prodTime,
+      product.description,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    setFormData((prev) => ({
+      ...prev,
+      productDescription: description,
+      specificRequirements: '',
+    }));
+  };
+
+  const switchToCustom = () => {
+    setIsCustomMode(true);
+    setSelectedPrefixed(null);
+    setSelectedSize('');
+    setFormData((prev) => ({
+      ...prev,
+      productDescription: '',
+      specificRequirements: '',
+    }));
+  };
+
+  // Handle edits to auto-filled fields — warn about deselecting prefixed product
+  const handleProductDetailChange = (field: keyof NewOrderFormData, value: string) => {
+    if (selectedPrefixed && !isCustomMode) {
+      setPendingFieldEdit({ field, value });
+      setShowDeselectWarning(true);
+      return;
+    }
+    handleInputChange(field, value);
+  };
+
+  const confirmDeselect = () => {
+    if (pendingFieldEdit) {
+      setSelectedPrefixed(null);
+      setSelectedSize('');
+      setIsCustomMode(true);
+      handleInputChange(pendingFieldEdit.field, pendingFieldEdit.value);
+    }
+    setShowDeselectWarning(false);
+    setPendingFieldEdit(null);
+  };
+
+  const cancelDeselect = () => {
+    setShowDeselectWarning(false);
+    setPendingFieldEdit(null);
   };
 
   const validateStep1 = () => {
@@ -128,6 +264,17 @@ export default function NewOrderPage() {
     if (!formData.quantity || parseInt(formData.quantity) <= 0) newErrors.quantity = 'Quantity must be greater than 0';
     if (formData.targetPrice && parseFloat(formData.targetPrice) <= 0) newErrors.targetPrice = 'Target price must be greater than 0';
     if (!formData.targetDeliveryDate) newErrors.targetDeliveryDate = 'Target delivery date is required';
+
+    // If prefixed products exist and none is selected AND not in custom mode
+    if (prefixedProducts.length > 0 && !selectedPrefixed && !isCustomMode) {
+      newErrors.productType = 'Please select a design or choose "Custom Product"';
+    }
+
+    // If a prefixed product is selected, require size selection
+    if (selectedPrefixed && selectedPrefixed.sizes.length > 1 && !selectedSize) {
+      newErrors.productType = 'Please select a size';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -143,11 +290,9 @@ export default function NewOrderPage() {
     setDeliveryError('');
 
     if (addresses.length === 0) {
-      // No addresses configured — allow skipping (they can add later)
       return true;
     }
 
-    // Check that at least one shipment has an address
     const hasAddress = shipments.some((s) => s.addressId);
     if (!hasAddress) {
       setDeliveryError('Please select at least one delivery address.');
@@ -155,7 +300,6 @@ export default function NewOrderPage() {
     }
 
     if (splitMode) {
-      // Validate all splits have address and quantity
       for (let i = 0; i < shipments.length; i++) {
         if (!shipments[i].addressId) {
           setDeliveryError(`Shipment ${i + 1}: Please select a delivery address.`);
@@ -167,7 +311,6 @@ export default function NewOrderPage() {
         }
       }
 
-      // Validate total quantity matches order quantity
       const totalSplitQty = shipments.reduce((sum, s) => sum + (parseInt(s.quantity) || 0), 0);
       const orderQty = parseInt(formData.quantity) || 0;
       if (totalSplitQty !== orderQty) {
@@ -206,11 +349,9 @@ export default function NewOrderPage() {
 
   const handleToggleSplitMode = () => {
     if (!splitMode) {
-      // Entering split mode — keep existing first shipment, set its qty to full order qty
       const first = shipments[0] || { addressId: '', quantity: '', notes: '' };
       setShipments([{ ...first, quantity: formData.quantity }]);
     } else {
-      // Exiting split mode — keep only first shipment, clear quantity
       const first = shipments[0] || { addressId: '', quantity: '', notes: '' };
       setShipments([{ ...first, quantity: '', notes: '' }]);
     }
@@ -247,6 +388,8 @@ export default function NewOrderPage() {
           target_price: formData.targetPrice ? parseFloat(formData.targetPrice) : null,
           target_delivery_date: formData.targetDeliveryDate,
           notes: formData.specificRequirements || '',
+          prefixed_product_id: selectedPrefixed?.id || null,
+          selected_size: selectedSize || null,
         })
         .select()
         .single();
@@ -283,16 +426,19 @@ export default function NewOrderPage() {
 
         if (shipError) {
           console.error('Error creating shipments:', shipError);
-          // Order was created, just shipments failed — not fatal
         }
       }
 
       // Notify admins about new order
+      const productLabel = selectedPrefixed
+        ? `${selectedPrefixed.name} (${selectedSize || 'no size'})`
+        : formData.productType;
+
       await notifyAdmins({
         orderId: data.id,
         type: 'order_status',
         title: `New Order Submitted — ${orderNumber}`,
-        body: `${userName} (${companyName}) submitted a new order for ${parseInt(formData.quantity).toLocaleString()} ${formData.productType} units.`,
+        body: `${userName} (${companyName}) submitted a new order for ${parseInt(formData.quantity).toLocaleString()} ${productLabel} units.`,
       });
 
       setGeneratedOrderId(orderNumber);
@@ -408,10 +554,146 @@ export default function NewOrderPage() {
                   label="Product Type"
                   options={productOptions}
                   value={formData.productType}
-                  onChange={(e) => handleInputChange('productType', e.target.value)}
+                  onChange={(e) => handleProductTypeChange(e.target.value)}
                   error={errors.productType}
                   placeholder="Select a product type"
                 />
+
+                {/* Prefixed Product Selection */}
+                {formData.productType && !loadingProducts && prefixedProducts.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Choose a Design
+                    </label>
+                    <div className="space-y-3">
+                      {prefixedProducts.map((product) => {
+                        const isSelected = selectedPrefixed?.id === product.id;
+                        return (
+                          <div
+                            key={product.id}
+                            onClick={() => selectPrefixedProduct(product)}
+                            className={`flex gap-4 p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                              isSelected
+                                ? 'border-green-500 bg-green-50/50 shadow-sm'
+                                : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                            }`}
+                          >
+                            {/* Product Image */}
+                            <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                              {product.image_url ? (
+                                <img
+                                  src={product.image_url}
+                                  alt={product.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex items-center justify-center h-full">
+                                  <ImageIcon className="w-8 h-8 text-gray-300" />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Product Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <h4 className="font-semibold text-gray-900">{product.name}</h4>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    SKU: {product.sku} · {product.material}
+                                  </p>
+                                </div>
+                                {isSelected && (
+                                  <div className="flex-shrink-0">
+                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Sizes */}
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {product.sizes.map((s, i) => (
+                                  <span
+                                    key={i}
+                                    onClick={(e) => {
+                                      if (isSelected) {
+                                        e.stopPropagation();
+                                        setSelectedSize(s.size);
+                                      }
+                                    }}
+                                    className={`inline-flex items-center px-2.5 py-1 text-xs rounded-md transition-colors ${
+                                      isSelected && selectedSize === s.size
+                                        ? 'bg-green-600 text-white font-semibold'
+                                        : isSelected
+                                          ? 'bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer'
+                                          : 'bg-gray-100 text-gray-600'
+                                    }`}
+                                  >
+                                    {s.size} — ${s.price.toFixed(2)}
+                                  </span>
+                                ))}
+                              </div>
+
+                              {/* Price & Production Time */}
+                              <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                                {product.estimated_price_min != null && product.estimated_price_max != null && (
+                                  <span className="flex items-center gap-1">
+                                    <Package className="w-3.5 h-3.5" />
+                                    ${product.estimated_price_min.toFixed(2)} – ${product.estimated_price_max.toFixed(2)}/unit
+                                  </span>
+                                )}
+                                {product.estimated_production_days && (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3.5 h-3.5" />
+                                    ~{product.estimated_production_days} days
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Size selection reminder */}
+                              {isSelected && product.sizes.length > 1 && !selectedSize && (
+                                <p className="text-xs text-amber-600 mt-2 font-medium">
+                                  Please select a size above
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Custom Product Option */}
+                      <div
+                        onClick={switchToCustom}
+                        className={`flex items-center gap-4 p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                          isCustomMode
+                            ? 'border-green-500 bg-green-50/50 shadow-sm'
+                            : 'border-dashed border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Pencil className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900">Custom Product</h4>
+                          <p className="text-xs text-gray-500">
+                            Describe your own product — we&apos;ll source it for you
+                          </p>
+                        </div>
+                        {isCustomMode && (
+                          <div className="ml-auto flex-shrink-0">
+                            <CheckCircle className="w-5 h-5 text-green-600" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {loadingProducts && formData.productType && (
+                  <div className="text-center py-4 text-gray-500 text-sm">
+                    Loading available designs...
+                  </div>
+                )}
+
                 <Input
                   label="Quantity"
                   type="number"
@@ -443,12 +725,33 @@ export default function NewOrderPage() {
             {/* Step 2: Product Details */}
             {currentStep === 2 && (
               <>
+                {/* Show selected prefixed product summary */}
+                {selectedPrefixed && !isCustomMode && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-2">
+                    <div className="flex items-start gap-3">
+                      {selectedPrefixed.image_url && (
+                        <img
+                          src={selectedPrefixed.image_url}
+                          alt={selectedPrefixed.name}
+                          className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                        />
+                      )}
+                      <div>
+                        <p className="font-semibold text-green-800">{selectedPrefixed.name}</p>
+                        <p className="text-xs text-green-600 mt-0.5">
+                          SKU: {selectedPrefixed.sku} · Size: {selectedSize || 'N/A'} · {selectedPrefixed.material}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <Textarea
                   label="Product Description"
                   placeholder="Describe the product you want to order. Include details like materials, colors, branding requirements, etc."
                   rows={6}
                   value={formData.productDescription}
-                  onChange={(e) => handleInputChange('productDescription', e.target.value)}
+                  onChange={(e) => handleProductDetailChange('productDescription', e.target.value)}
                   error={errors.productDescription}
                 />
                 <Textarea
@@ -456,7 +759,7 @@ export default function NewOrderPage() {
                   placeholder="Any additional specifications, certifications, or requirements for this order..."
                   rows={4}
                   value={formData.specificRequirements}
-                  onChange={(e) => handleInputChange('specificRequirements', e.target.value)}
+                  onChange={(e) => handleProductDetailChange('specificRequirements', e.target.value)}
                   helperText="You can upload reference images after submitting the order."
                 />
               </>
@@ -509,7 +812,6 @@ export default function NewOrderPage() {
                     </div>
 
                     {!splitMode ? (
-                      /* Single delivery address selection */
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Delivery Address
@@ -554,7 +856,6 @@ export default function NewOrderPage() {
                         </div>
                       </div>
                     ) : (
-                      /* Split shipment mode */
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium text-gray-700">
@@ -640,6 +941,27 @@ export default function NewOrderPage() {
             {currentStep === 4 && (
               <div className="space-y-6">
                 <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                  {/* Show selected prefixed product */}
+                  {selectedPrefixed && (
+                    <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg p-3">
+                      {selectedPrefixed.image_url && (
+                        <img
+                          src={selectedPrefixed.image_url}
+                          alt={selectedPrefixed.name}
+                          className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                        />
+                      )}
+                      <div>
+                        <p className="font-semibold text-green-800 text-sm">{selectedPrefixed.name}</p>
+                        <p className="text-xs text-green-600">
+                          SKU: {selectedPrefixed.sku}
+                          {selectedSize ? ` · Size: ${selectedSize}` : ''}
+                        </p>
+                      </div>
+                      <Badge variant="success" className="ml-auto">Catalog Product</Badge>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-500 mb-1">Product Type</p>
@@ -734,6 +1056,33 @@ export default function NewOrderPage() {
             </div>
           </CardFooter>
         </Card>
+
+        {/* Deselect Warning Modal */}
+        {showDeselectWarning && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <AlertCircle className="w-5 h-5 text-amber-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900">Switch to Custom Product?</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-6">
+                Editing the product details will deselect the prefixed design
+                <strong> &ldquo;{selectedPrefixed?.name}&rdquo;</strong> and switch to a custom product.
+                Are you sure you want to continue?
+              </p>
+              <div className="flex justify-end gap-3">
+                <Button variant="secondary" onClick={cancelDeselect}>
+                  Keep Design
+                </Button>
+                <Button variant="primary" onClick={confirmDeselect}>
+                  Switch to Custom
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </PortalLayout>
   );
