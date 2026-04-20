@@ -42,6 +42,7 @@ export default function AdminOrderDetailPage() {
 
   // Sample approval form state
   const [showSampleForm, setShowSampleForm] = useState(false);
+  const [showSamplePhotoForm, setShowSamplePhotoForm] = useState(false);
   const [sampleImages, setSampleImages] = useState<File[]>([]);
   const [sampleImagePreviews, setSampleImagePreviews] = useState<string[]>([]);
   const [sampleDescription, setSampleDescription] = useState('');
@@ -523,17 +524,80 @@ export default function AdminOrderDetailPage() {
     setSampleImagePreviews(newFiles.map((f) => URL.createObjectURL(f)));
   };
 
-  const handleSubmitSampleApproval = async () => {
-    if (sampleImages.length === 0) {
-      setStatusFeedback({ type: 'error', message: 'Please upload at least one sample photo.' });
-      return;
-    }
+  const handleSubmitSamplePricing = async () => {
     if (!samplePricePerUnit || parseFloat(samplePricePerUnit) < 0) {
       setStatusFeedback({ type: 'error', message: 'Please enter a valid price per sample.' });
       return;
     }
     if (!sampleShippingDays || parseInt(sampleShippingDays) < 0) {
-      setStatusFeedback({ type: 'error', message: 'Please enter valid shipping days.' });
+      setStatusFeedback({ type: 'error', message: 'Please enter valid production lead time (days).' });
+      return;
+    }
+
+    setSampleSubmitting(true);
+    setStatusFeedback(null);
+
+    try {
+      const supabase = createClient();
+
+      // Update order with sample pricing info (status stays at sample_production)
+      await supabase.from('orders').update({
+        sample_price_per_unit: parseFloat(samplePricePerUnit),
+        sample_shipping_days: parseInt(sampleShippingDays),
+      }).eq('id', orderId);
+
+      const msg = `Sample pricing is ready for your review! Cost per sample: $${parseFloat(samplePricePerUnit).toFixed(2)} (estimated ${sampleShippingDays} days production lead time). Please review and we'll send you sample photos once you're ready to proceed.`;
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: 'sample_production',
+        message: msg,
+        created_by: adminUser?.id,
+      }]);
+
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: adminUser?.id,
+        sender_role: 'admin',
+        message: msg,
+      }]);
+
+      setOrder({
+        ...order!,
+        sample_price_per_unit: parseFloat(samplePricePerUnit),
+        sample_shipping_days: parseInt(sampleShippingDays),
+      });
+      setStatusFeedback({ type: 'success', message: 'Sample pricing sent to client!' });
+      setShowSampleForm(false);
+      setSamplePricePerUnit('');
+      setSampleShippingDays('');
+
+      if (order?.client_id) {
+        await notifyOrgMembers({
+          orderId,
+          clientId: order.client_id,
+          type: 'order_status',
+          title: `Sample Pricing Ready — #${order.order_number || orderId.slice(0, 8)}`,
+          body: 'Sample pricing is ready for your review.',
+          supabaseClient: supabase,
+        });
+      }
+
+      // Refresh
+      const { data: updatesData } = await supabase.from('order_updates').select('*').eq('order_id', orderId).order('created_at', { ascending: false });
+      setUpdates((updatesData as OrderUpdate[]) || []);
+      const { data: messagesData } = await supabase.from('order_messages').select('*').eq('order_id', orderId).order('created_at', { ascending: true });
+      setMessages((messagesData as OrderMessage[]) || []);
+    } catch (error: any) {
+      setStatusFeedback({ type: 'error', message: error.message || 'Failed to submit sample pricing.' });
+    } finally {
+      setSampleSubmitting(false);
+    }
+  };
+
+  const handleSubmitSamplePhotos = async () => {
+    if (sampleImages.length === 0) {
+      setStatusFeedback({ type: 'error', message: 'Please upload at least one sample photo.' });
       return;
     }
 
@@ -554,13 +618,10 @@ export default function AdminOrderDetailPage() {
         uploadedUrls.push(urlData.publicUrl);
       }
 
-      // Update order with sample info
+      // Update order with sample images and description (status stays at sample_approval_pending)
       await supabase.from('orders').update({
-        status: 'sample_approval_pending',
         sample_images: uploadedUrls,
         sample_description: sampleDescription || null,
-        sample_price_per_unit: parseFloat(samplePricePerUnit),
-        sample_shipping_days: parseInt(sampleShippingDays),
         sample_physical_requested: false,
         sample_shipped: false,
         sample_quantity_requested: null,
@@ -568,7 +629,7 @@ export default function AdminOrderDetailPage() {
         sample_quantity_note: null,
       }).eq('id', orderId);
 
-      const msg = `Sample photos are ready for your review! We've uploaded ${uploadedUrls.length} photo(s) of your product samples.${sampleDescription ? `\n\nDescription: ${sampleDescription}` : ''}\n\nYou can approve directly from the photos, or request physical samples shipped to you at $${parseFloat(samplePricePerUnit).toFixed(2)} per sample (estimated ${sampleShippingDays} days shipping).`;
+      const msg = `Sample photos are ready for your review! We've uploaded ${uploadedUrls.length} photo(s) of your product samples.${sampleDescription ? `\n\nDescription: ${sampleDescription}` : ''}\n\nYou can approve directly from the photos, or request physical samples shipped to you.`;
 
       await supabase.from('order_updates').insert([{
         order_id: orderId,
@@ -587,21 +648,16 @@ export default function AdminOrderDetailPage() {
 
       setOrder({
         ...order!,
-        status: 'sample_approval_pending' as OrderStatus,
         sample_images: uploadedUrls,
         sample_description: sampleDescription || null,
-        sample_price_per_unit: parseFloat(samplePricePerUnit),
-        sample_shipping_days: parseInt(sampleShippingDays),
         sample_physical_requested: false,
         sample_shipped: false,
       });
       setStatusFeedback({ type: 'success', message: 'Sample photos sent for client approval!' });
-      setShowSampleForm(false);
+      setShowSamplePhotoForm(false);
       setSampleImages([]);
       setSampleImagePreviews([]);
       setSampleDescription('');
-      setSamplePricePerUnit('');
-      setSampleShippingDays('');
 
       if (order?.client_id) {
         await notifyOrgMembers({
@@ -620,7 +676,7 @@ export default function AdminOrderDetailPage() {
       const { data: messagesData } = await supabase.from('order_messages').select('*').eq('order_id', orderId).order('created_at', { ascending: true });
       setMessages((messagesData as OrderMessage[]) || []);
     } catch (error: any) {
-      setStatusFeedback({ type: 'error', message: error.message || 'Failed to submit samples.' });
+      setStatusFeedback({ type: 'error', message: error.message || 'Failed to submit sample photos.' });
     } finally {
       setSampleSubmitting(false);
     }
@@ -1522,16 +1578,78 @@ export default function AdminOrderDetailPage() {
               </Card>
             )}
 
-            {/* Sample Approval Form (admin uploads photos + sets price/shipping) */}
-            {(showSampleForm || order.status === 'sample_production') && (
+            {/* Sample Pricing Form (admin sets price and production lead time) */}
+            {(showSampleForm || (order.status === 'sample_production' && !order.sample_price_per_unit)) && (
+              <Card className="border-2 border-blue-200 bg-blue-50">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-blue-600" />
+                    <h2 className="text-lg font-semibold text-gray-900">Set Sample Pricing</h2>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Set the cost per sample and production lead time. The client will review this pricing before approving.
+                  </p>
+                </CardHeader>
+                <CardBody>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Price per Sample <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={samplePricePerUnit}
+                            onChange={(e) => setSamplePricePerUnit(e.target.value)}
+                            className="pl-7"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Cost per sample</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Production Lead Time <span className="text-red-500">*</span>
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="e.g. 7"
+                          value={sampleShippingDays}
+                          onChange={(e) => setSampleShippingDays(e.target.value)}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Days to produce samples</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardBody>
+                <CardFooter>
+                  <div className="flex gap-3">
+                    <Button variant="primary" onClick={handleSubmitSamplePricing} isLoading={sampleSubmitting}>
+                      Send Pricing to Client
+                    </Button>
+                    <Button variant="secondary" onClick={() => { setShowSampleForm(false); setSamplePricePerUnit(''); setSampleShippingDays(''); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </CardFooter>
+              </Card>
+            )}
+
+            {/* Sample Photos Form (admin uploads photos + description) */}
+            {(showSamplePhotoForm || (order.status === 'sample_approval_pending' && (!order.sample_images || order.sample_images.length === 0))) && (
               <Card className="border-2 border-purple-200 bg-purple-50">
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <Camera className="w-5 h-5 text-purple-600" />
-                    <h2 className="text-lg font-semibold text-gray-900">Send Samples for Approval</h2>
+                    <h2 className="text-lg font-semibold text-gray-900">Upload Sample Photos</h2>
                   </div>
                   <p className="text-sm text-gray-600 mt-1">
-                    Upload sample photos, add a description, and set the cost for physical sample shipping.
+                    Upload sample photos and add a description for the client.
                   </p>
                 </CardHeader>
                 <CardBody>
@@ -1574,49 +1692,14 @@ export default function AdminOrderDetailPage() {
                         onChange={(e) => setSampleDescription(e.target.value)}
                       />
                     </div>
-
-                    {/* Price and Shipping */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Price per Sample <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={samplePricePerUnit}
-                            onChange={(e) => setSamplePricePerUnit(e.target.value)}
-                            className="pl-7"
-                          />
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">Cost to ship each sample to client</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Estimated Shipping Days <span className="text-red-500">*</span>
-                        </label>
-                        <Input
-                          type="number"
-                          min="0"
-                          placeholder="e.g. 7"
-                          value={sampleShippingDays}
-                          onChange={(e) => setSampleShippingDays(e.target.value)}
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Days to deliver physical samples</p>
-                      </div>
-                    </div>
                   </div>
                 </CardBody>
                 <CardFooter>
                   <div className="flex gap-3">
-                    <Button variant="primary" onClick={handleSubmitSampleApproval} isLoading={sampleSubmitting}>
-                      Send to Client for Approval
+                    <Button variant="primary" onClick={handleSubmitSamplePhotos} isLoading={sampleSubmitting}>
+                      Send Photos to Client
                     </Button>
-                    <Button variant="secondary" onClick={() => { setShowSampleForm(false); setSampleImages([]); setSampleImagePreviews([]); }}>
+                    <Button variant="secondary" onClick={() => { setShowSamplePhotoForm(false); setSampleImages([]); setSampleImagePreviews([]); setSampleDescription(''); }}>
                       Cancel
                     </Button>
                   </div>
@@ -1641,18 +1724,8 @@ export default function AdminOrderDetailPage() {
                         <span className="font-bold text-gray-900">{order.sample_quantity_requested} sample(s)</span>
                       </div>
                       <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm text-gray-600">Price per Sample</span>
-                        <span className="font-semibold text-gray-900">${(order.sample_price_per_unit || 0).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between items-center mb-2">
                         <span className="text-sm text-gray-600">Estimated Shipping</span>
                         <span className="font-semibold text-gray-900">{order.sample_shipping_days} days</span>
-                      </div>
-                      <div className="flex justify-between items-center border-t border-gray-200 pt-2">
-                        <span className="font-semibold text-gray-900">Total Cost</span>
-                        <span className="font-bold text-lg text-purple-600">
-                          ${((order.sample_quantity_approved || order.sample_quantity_requested || 0) * (order.sample_price_per_unit || 0)).toFixed(2)}
-                        </span>
                       </div>
                       {order.sample_quantity_approved && order.sample_quantity_approved !== order.sample_quantity_requested && (
                         <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
@@ -1742,10 +1815,7 @@ export default function AdminOrderDetailPage() {
                   {order.sample_description && (
                     <p className="text-sm text-gray-700"><span className="font-medium">Description:</span> {order.sample_description}</p>
                   )}
-                  <p className="text-sm text-gray-500 mt-2">
-                    Price per sample: ${(order.sample_price_per_unit || 0).toFixed(2)} · Shipping: {order.sample_shipping_days} days
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">Waiting for client to approve from photos or request physical samples.</p>
+                  <p className="text-xs text-gray-400 mt-2">Waiting for client to approve from photos or request physical samples.</p>
                 </CardBody>
               </Card>
             )}
@@ -1838,13 +1908,24 @@ export default function AdminOrderDetailPage() {
                   >
                     Request Information
                   </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setShowSampleForm(true)}
-                    className="w-full"
-                  >
-                    Send for Sample Approval
-                  </Button>
+                  {order.status === 'sample_production' && !order.sample_price_per_unit && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShowSampleForm(true)}
+                      className="w-full"
+                    >
+                      Set Sample Pricing
+                    </Button>
+                  )}
+                  {order.status === 'sample_approval_pending' && (!order.sample_images || order.sample_images.length === 0) && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShowSamplePhotoForm(true)}
+                      className="w-full"
+                    >
+                      Upload Sample Photos
+                    </Button>
+                  )}
                   <Button
                     variant="secondary"
                     onClick={handleRequestPayment}

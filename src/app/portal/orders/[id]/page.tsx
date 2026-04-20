@@ -49,6 +49,8 @@ export default function OrderDetailPage() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [sampleQuantity, setSampleQuantity] = useState('1');
   const [requestingSamples, setRequestingSamples] = useState(false);
+  const [samplePricingApprovalLoading, setSamplePricingApprovalLoading] = useState(false);
+  const [samplePaymentLoading, setSamplePaymentLoading] = useState(false);
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [voidReason, setVoidReason] = useState('');
   const [voidLoading, setVoidLoading] = useState(false);
@@ -440,21 +442,16 @@ export default function OrderDetailPage() {
 
   const handleRequestPhysicalSamples = async () => {
     if (!user || !order) return;
-    const qty = parseInt(sampleQuantity);
-    if (!qty || qty < 1) return;
 
     setRequestingSamples(true);
     try {
       const supabase = createClient();
-      const totalCost = qty * (order.sample_price_per_unit || 0);
 
       await supabase.from('orders').update({
         sample_physical_requested: true,
-        sample_quantity_requested: qty,
-        sample_quantity_approved: qty,
       }).eq('id', orderId);
 
-      const msg = `I'd like to receive ${qty} physical sample(s). Total cost: $${totalCost.toFixed(2)} (${qty} × $${(order.sample_price_per_unit || 0).toFixed(2)}).`;
+      const msg = `I'd like to receive physical samples shipped to me for hands-on review before approving.`;
 
       await supabase.from('order_messages').insert([{
         order_id: orderId,
@@ -464,7 +461,7 @@ export default function OrderDetailPage() {
         attachments: [],
       }]);
 
-      setOrder({ ...order, sample_physical_requested: true, sample_quantity_requested: qty, sample_quantity_approved: qty });
+      setOrder({ ...order, sample_physical_requested: true });
       setAllMessages([...allMessages, {
         id: `msg_${Date.now()}`,
         order_id: orderId,
@@ -479,13 +476,104 @@ export default function OrderDetailPage() {
         orderId,
         type: 'order_status',
         title: `Physical Samples Requested — #${order.order_number || orderId.slice(0, 8)}`,
-        body: `${user.full_name} requested ${qty} physical sample(s). Total: $${totalCost.toFixed(2)}`,
+        body: `${user.full_name} requested physical samples to be shipped for review.`,
         supabaseClient: supabase,
       });
     } catch (error) {
       console.error('Error requesting samples:', error);
     } finally {
       setRequestingSamples(false);
+    }
+  };
+
+  const handleApproveSamplePricing = async () => {
+    if (!user || !order) return;
+    const qty = parseInt(sampleQuantity);
+    if (!qty || qty < 1) return;
+
+    setSamplePricingApprovalLoading(true);
+    try {
+      const supabase = createClient();
+      const totalCost = qty * (order.sample_price_per_unit || 0);
+
+      await supabase.from('orders').update({
+        sample_quantity_requested: qty,
+        sample_quantity_approved: qty,
+      }).eq('id', orderId);
+
+      const msg = `I approve the sample pricing. Requesting ${qty} sample(s) at $${(order.sample_price_per_unit || 0).toFixed(2)} each. Total: $${totalCost.toFixed(2)}.`;
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: 'sample_production' as OrderStatus,
+        message: msg,
+        created_by: user.id,
+      }]);
+
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: user.id,
+        sender_role: 'client',
+        message: msg,
+        attachments: [],
+      }]);
+
+      setOrder({ ...order, sample_quantity_requested: qty, sample_quantity_approved: qty });
+      setAllMessages([...allMessages, {
+        id: `msg_${Date.now()}`,
+        order_id: orderId,
+        sender_id: user.id,
+        sender_role: 'client',
+        message: msg,
+        attachments: [],
+        created_at: new Date().toISOString(),
+      }]);
+
+      await notifyAdmins({
+        orderId,
+        type: 'order_status',
+        title: `Sample Pricing Approved — #${order.order_number || orderId.slice(0, 8)}`,
+        body: `${user.full_name} approved sample pricing. ${qty} sample(s) at $${(order.sample_price_per_unit || 0).toFixed(2)} each. Total: $${totalCost.toFixed(2)}.`,
+        supabaseClient: supabase,
+      });
+    } catch (error) {
+      console.error('Error approving sample pricing:', error);
+    } finally {
+      setSamplePricingApprovalLoading(false);
+    }
+  };
+
+  const handlePayForSamples = async () => {
+    if (!order || !user) return;
+    setSamplePaymentLoading(true);
+
+    try {
+      const qty = order.sample_quantity_approved || order.sample_quantity_requested || parseInt(sampleQuantity) || 1;
+      const totalCost = qty * (order.sample_price_per_unit || 0);
+
+      const res = await fetch('/api/stripe/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          orderNumber: order.order_number || order.id.slice(0, 8),
+          amount: totalCost,
+          customerEmail: user.email,
+          paymentType: 'sample',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        console.error('No checkout URL returned:', data);
+      }
+    } catch (error) {
+      console.error('Error creating sample payment:', error);
+    } finally {
+      setSamplePaymentLoading(false);
     }
   };
 
@@ -1252,7 +1340,99 @@ export default function OrderDetailPage() {
           );
         })()}
 
-        {/* Sample Approval */}
+        {/* Sample Production — Client reviews pricing and enters quantity */}
+        {order.status === 'sample_production' && order.sample_price_per_unit && (
+          <Card className="border-2 border-purple-200">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-purple-600" />
+                <h2 className="text-lg font-bold text-gray-900">
+                  Sample Pricing Review
+                </h2>
+              </div>
+            </CardHeader>
+            <CardBody>
+              <p className="text-sm text-gray-600 mb-4">
+                Our team has prepared sample pricing for your order. Please review the details below and confirm the quantity you&apos;d like.
+              </p>
+
+              <div className="bg-white rounded-lg p-5 border border-purple-200 mb-4">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-gray-600">Price per Sample</span>
+                  <span className="font-bold text-xl text-purple-600">${(order.sample_price_per_unit || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Production Lead Time</span>
+                  <span className="font-semibold text-gray-900">{order.sample_shipping_days || '—'} days</span>
+                </div>
+              </div>
+
+              {/* If client hasn't approved yet, show quantity input + approve */}
+              {!order.sample_quantity_requested ? (
+                <>
+                  <div className="flex items-end gap-4 mb-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">How many samples would you like?</label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={sampleQuantity}
+                        onChange={(e) => setSampleQuantity(e.target.value)}
+                      />
+                    </div>
+                    <div className="text-right pb-2">
+                      <p className="text-xs text-gray-500">Total</p>
+                      <p className="font-bold text-xl text-purple-600">
+                        ${((parseInt(sampleQuantity) || 0) * (order.sample_price_per_unit || 0)).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    onClick={handleApproveSamplePricing}
+                    isLoading={samplePricingApprovalLoading}
+                    className="w-full"
+                    disabled={!sampleQuantity || parseInt(sampleQuantity) < 1}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Approve &amp; Proceed — ${((parseInt(sampleQuantity) || 0) * (order.sample_price_per_unit || 0)).toFixed(2)}
+                  </Button>
+                </>
+              ) : (
+                /* Client has approved — show payment button */
+                <div>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-green-800">
+                        You approved {order.sample_quantity_approved || order.sample_quantity_requested} sample(s)
+                      </p>
+                      <p className="text-xs text-green-700">
+                        Total: ${((order.sample_quantity_approved || order.sample_quantity_requested || 0) * (order.sample_price_per_unit || 0)).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    onClick={handlePayForSamples}
+                    isLoading={samplePaymentLoading}
+                    className="w-full"
+                  >
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Pay for Samples — ${((order.sample_quantity_approved || order.sample_quantity_requested || 0) * (order.sample_price_per_unit || 0)).toFixed(2)}
+                  </Button>
+                  <p className="text-xs text-gray-400 text-center mt-2">
+                    Powered by Stripe. Accepts credit card, ACH, and wire transfers.
+                  </p>
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Awaiting Sample Approval — Client reviews photos */}
         {order.status === 'sample_approval_pending' && (
           <Card className="border-2 border-purple-200">
             <CardHeader>
@@ -1286,30 +1466,15 @@ export default function OrderDetailPage() {
                 </div>
               )}
 
-              {/* Quantity adjustment notice */}
-              {order.sample_quantity_approved && order.sample_quantity_requested && order.sample_quantity_approved !== order.sample_quantity_requested && (
-                <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm font-medium text-yellow-800">
-                    Sample quantity adjusted from {order.sample_quantity_requested} to {order.sample_quantity_approved}
-                  </p>
-                  {order.sample_quantity_note && (
-                    <p className="text-sm text-yellow-700 mt-1">Reason: {order.sample_quantity_note}</p>
-                  )}
-                  <p className="text-sm text-yellow-700 mt-1">
-                    Updated total: ${((order.sample_quantity_approved) * (order.sample_price_per_unit || 0)).toFixed(2)}
-                  </p>
-                </div>
-              )}
-
               {/* Shipped notice */}
               {order.sample_shipped && (
                 <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
                   <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
                   <div>
                     <p className="text-sm font-medium text-green-800">
-                      Your {order.sample_quantity_approved || order.sample_quantity_requested} sample(s) have been shipped!
+                      Your physical sample(s) have been shipped!
                     </p>
-                    <p className="text-xs text-green-700">Estimated delivery: {order.sample_shipping_days} days</p>
+                    <p className="text-xs text-green-700">Please allow 7–14 business days to receive them.</p>
                   </div>
                 </div>
               )}
@@ -1324,7 +1489,7 @@ export default function OrderDetailPage() {
               <div className="border border-gray-200 rounded-xl p-5 mb-4">
                 <h3 className="font-semibold text-gray-900 mb-2">Option 1: Approve from Photos</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  If you're satisfied with the sample photos above, you can approve directly and we'll proceed to manufacturing.
+                  If you&apos;re satisfied with the sample photos above, you can approve directly and we&apos;ll proceed to manufacturing.
                 </p>
                 <div className="flex gap-3">
                   <Button
@@ -1379,43 +1544,21 @@ export default function OrderDetailPage() {
                 <div className="border border-gray-200 rounded-xl p-5">
                   <h3 className="font-semibold text-gray-900 mb-2">Option 2: Request Physical Samples</h3>
                   <p className="text-sm text-gray-600 mb-4">
-                    Want to see and feel the product in person? We can ship physical samples to you.
+                    Want to see and feel the product in person? We&apos;ll ship physical samples to you at no additional cost.
                   </p>
-                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm text-gray-600">Price per sample</span>
-                      <span className="font-semibold text-gray-900">${(order.sample_price_per_unit || 0).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Estimated shipping</span>
-                      <span className="font-semibold text-gray-900">{order.sample_shipping_days || '—'} days</span>
-                    </div>
-                  </div>
-                  <div className="flex items-end gap-3">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">How many samples?</label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={sampleQuantity}
-                        onChange={(e) => setSampleQuantity(e.target.value)}
-                      />
-                    </div>
-                    <div className="text-right pb-2">
-                      <p className="text-xs text-gray-500">Total</p>
-                      <p className="font-bold text-lg text-purple-600">
-                        ${((parseInt(sampleQuantity) || 0) * (order.sample_price_per_unit || 0)).toFixed(2)}
-                      </p>
-                    </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-blue-800">
+                      <strong>Estimated delivery:</strong> 7–14 business days. Shipping is on us — no extra charge.
+                    </p>
                   </div>
                   <Button
                     variant="primary"
                     onClick={handleRequestPhysicalSamples}
                     isLoading={requestingSamples}
-                    className="w-full mt-4"
+                    className="w-full"
                   >
                     <Package className="w-4 h-4 mr-2" />
-                    Request {sampleQuantity} Physical Sample{parseInt(sampleQuantity) !== 1 ? 's' : ''} — ${((parseInt(sampleQuantity) || 0) * (order.sample_price_per_unit || 0)).toFixed(2)}
+                    Request Physical Samples
                   </Button>
                 </div>
               ) : (
@@ -1424,22 +1567,9 @@ export default function OrderDetailPage() {
                     <Package className="w-5 h-5 text-purple-600" />
                     <h3 className="font-semibold text-gray-900">Physical Samples Requested</h3>
                   </div>
-                  <div className="bg-white rounded-lg p-4 border border-purple-200">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm text-gray-600">Quantity</span>
-                      <span className="font-semibold text-gray-900">{order.sample_quantity_approved || order.sample_quantity_requested} sample(s)</span>
-                    </div>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-sm text-gray-600">Price per sample</span>
-                      <span className="font-semibold text-gray-900">${(order.sample_price_per_unit || 0).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center border-t border-gray-200 pt-1 mt-1">
-                      <span className="font-semibold text-gray-900">Total</span>
-                      <span className="font-bold text-purple-600">
-                        ${((order.sample_quantity_approved || order.sample_quantity_requested || 0) * (order.sample_price_per_unit || 0)).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
+                  <p className="text-sm text-gray-600">
+                    Your request for physical samples has been submitted. Estimated delivery: 7–14 business days.
+                  </p>
                   {!order.sample_shipped && (
                     <p className="text-sm text-purple-700 mt-3">Our team is preparing your samples for shipment.</p>
                   )}
