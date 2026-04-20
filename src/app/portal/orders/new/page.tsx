@@ -120,6 +120,8 @@ export default function NewOrderPage() {
   const [individualPackaging, setIndividualPackaging] = useState<string>('');
   const [shippingConfig, setShippingConfig] = useState<string>('');
   const [packagingNotes, setPackagingNotes] = useState('');
+  const [dielineFiles, setDielineFiles] = useState<{ file: File; preview: string }[]>([]);
+  const [uploadingDieline, setUploadingDieline] = useState(false);
 
   // Delivery addresses
   const [addresses, setAddresses] = useState<DeliveryAddress[]>([]);
@@ -367,6 +369,46 @@ export default function NewOrderPage() {
     return urls;
   };
 
+  const handleDielineUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const remaining = 3 - dielineFiles.length;
+    const newFiles = files.slice(0, remaining).map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+    setDielineFiles((prev) => [...prev, ...newFiles]);
+    e.target.value = '';
+  };
+
+  const removeDielineFile = (index: number) => {
+    setDielineFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadDielineFiles = async (): Promise<string[]> => {
+    if (dielineFiles.length === 0) return [];
+    setUploadingDieline(true);
+
+    const urls: string[] = [];
+    for (const dl of dielineFiles) {
+      const ext = dl.file.name.split('.').pop();
+      const fileName = `${userId}/dielines/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const { error } = await supabase.storage
+        .from('order-inspiration')
+        .upload(fileName, dl.file, { cacheControl: '3600', upsert: false });
+
+      if (!error) {
+        const { data: urlData } = supabase.storage
+          .from('order-inspiration')
+          .getPublicUrl(fileName);
+        urls.push(urlData.publicUrl);
+      }
+    }
+
+    setUploadingDieline(false);
+    return urls;
+  };
+
   const uploadInspirationImages = async (): Promise<string[]> => {
     if (inspirationImages.length === 0) return [];
     setUploadingImages(true);
@@ -511,9 +553,10 @@ export default function NewOrderPage() {
     try {
       const orderNumber = `ORD-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
 
-      // Upload inspiration images and logo files
+      // Upload inspiration images, logo files, and dieline files
       const imageUrls = await uploadInspirationImages();
       const logoUrls = await uploadLogoFiles();
+      const dielineUrls = await uploadDielineFiles();
 
       const { data, error } = await supabase
         .from('orders')
@@ -540,6 +583,7 @@ export default function NewOrderPage() {
           packaging_individual: needsPackaging ? (individualPackaging || null) : null,
           packaging_shipping_config: needsPackaging ? (shippingConfig || null) : null,
           packaging_notes: needsPackaging ? (packagingNotes || null) : null,
+          packaging_dieline_files: needsPackaging && individualPackaging === 'custom_box' ? dielineUrls : [],
         })
         .select()
         .single();
@@ -1193,6 +1237,64 @@ export default function NewOrderPage() {
                           </button>
                         ))}
                       </div>
+
+                      {/* Dieline Upload — shown when custom_box is selected */}
+                      {individualPackaging === 'custom_box' && (
+                        <div className="mt-4 bg-green-50/50 border border-green-200 rounded-xl p-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
+                            <Upload className="w-4 h-4" />
+                            Box Dieline File — Optional
+                          </label>
+                          <p className="text-xs text-gray-500 mb-3">
+                            If you have a dieline (die-cut template) for your custom box, upload it here. This helps us match your exact specifications. Upload up to 3 files.
+                          </p>
+
+                          <div className="flex flex-wrap gap-3">
+                            {dielineFiles.map((dl, idx) => (
+                              <div key={idx} className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 group bg-white">
+                                {dl.file.type.startsWith('image/') ? (
+                                  <img
+                                    src={dl.preview}
+                                    alt={`Dieline ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex flex-col items-center justify-center p-2">
+                                    <Package className="w-6 h-6 text-gray-400 mb-1" />
+                                    <span className="text-[9px] text-gray-500 text-center truncate w-full">{dl.file.name}</span>
+                                  </div>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => removeDielineFile(idx)}
+                                  className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+
+                            {dielineFiles.length < 3 && (
+                              <label className="w-24 h-24 border-2 border-dashed border-green-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors">
+                                <Upload className="w-5 h-5 text-green-400 mb-1" />
+                                <span className="text-[10px] text-green-500 font-medium">Upload</span>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.ai,.eps,.svg,.dxf,.dwg,.png,.jpg,.jpeg"
+                                  multiple
+                                  onChange={handleDielineUpload}
+                                  className="hidden"
+                                />
+                              </label>
+                            )}
+                          </div>
+
+                          <p className="text-xs text-gray-400 mt-2">
+                            Accepted formats: PDF, AI, EPS, SVG, DXF, DWG, PNG, JPG
+                            {dielineFiles.length > 0 && ` · ${dielineFiles.length}/3 files added`}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Section 3: Shipping Configuration */}
@@ -1551,6 +1653,28 @@ export default function NewOrderPage() {
                             <p className="text-sm text-gray-900">
                               {INDIVIDUAL_PACKAGING_OPTIONS.find((o) => o.id === individualPackaging)?.label}
                             </p>
+                            {individualPackaging === 'custom_box' && dielineFiles.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-xs text-gray-500 mb-1">Dieline Files ({dielineFiles.length})</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {dielineFiles.map((dl, idx) => (
+                                    dl.file.type.startsWith('image/') ? (
+                                      <img
+                                        key={idx}
+                                        src={dl.preview}
+                                        alt={`Dieline ${idx + 1}`}
+                                        className="w-12 h-12 rounded-lg object-cover border border-gray-200"
+                                      />
+                                    ) : (
+                                      <div key={idx} className="w-12 h-12 rounded-lg border border-gray-200 bg-gray-50 flex flex-col items-center justify-center">
+                                        <Package className="w-3 h-3 text-gray-400" />
+                                        <span className="text-[7px] text-gray-500 truncate w-10 text-center">{dl.file.name.split('.').pop()?.toUpperCase()}</span>
+                                      </div>
+                                    )
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                         {shippingConfig && (

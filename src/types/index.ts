@@ -114,6 +114,7 @@ export interface Order {
   packaging_individual?: string | null;
   packaging_shipping_config?: string | null;
   packaging_notes?: string | null;
+  packaging_dieline_files?: string[];
 }
 
 export interface OrderUpdate {

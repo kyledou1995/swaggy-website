@@ -792,6 +792,27 @@ export default function OrderDetailPage() {
                     </p>
                   </div>
                 )}
+                {(order as any).packaging_dieline_files && (order as any).packaging_dieline_files.length > 0 && (
+                  <div className="md:col-span-2">
+                    <p className="text-sm text-gray-500 mb-2">Box Dieline Files</p>
+                    <div className="flex flex-wrap gap-3">
+                      {(order as any).packaging_dieline_files.map((url: string, idx: number) => {
+                        const ext = url.split('.').pop()?.toLowerCase() || '';
+                        const isImage = ['png', 'jpg', 'jpeg', 'svg'].includes(ext);
+                        return isImage ? (
+                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
+                            <img src={url} alt={`Dieline ${idx + 1}`} className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:ring-2 hover:ring-green-400 transition-all" />
+                          </a>
+                        ) : (
+                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="w-20 h-20 rounded-lg border border-gray-200 bg-gray-50 flex flex-col items-center justify-center hover:ring-2 hover:ring-green-400 transition-all">
+                            <Package className="w-5 h-5 text-gray-400 mb-1" />
+                            <span className="text-[9px] text-gray-500 font-medium">{ext.toUpperCase()}</span>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 {(order as any).packaging_shipping_config && (
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Shipping Configuration</p>
