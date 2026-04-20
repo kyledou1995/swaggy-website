@@ -1252,6 +1252,53 @@ export default function AdminOrderDetailPage() {
               </CardBody>
             </Card>
 
+            {/* Packaging Requirements */}
+            {(order as any).packaging_required && (
+              <Card>
+                <CardHeader>
+                  <h2 className="text-lg font-semibold text-gray-900">Packaging Requirements</h2>
+                </CardHeader>
+                <CardBody>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(order as any).packaging_product_protection && (order as any).packaging_product_protection.length > 0 && (
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Product Protection</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(order as any).packaging_product_protection.map((p: string) => (
+                            <span key={p} className="inline-block bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded">
+                              {p.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {(order as any).packaging_individual && (
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Individual Packaging</p>
+                        <p className="font-semibold text-gray-900">
+                          {(order as any).packaging_individual.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                        </p>
+                      </div>
+                    )}
+                    {(order as any).packaging_shipping_config && (
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Shipping Configuration</p>
+                        <p className="font-semibold text-gray-900">
+                          {(order as any).packaging_shipping_config.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                        </p>
+                      </div>
+                    )}
+                    {(order as any).packaging_notes && (
+                      <div className="md:col-span-2">
+                        <p className="text-sm text-gray-500 mb-1">Additional Notes</p>
+                        <p className="text-gray-900">{(order as any).packaging_notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardBody>
+              </Card>
+            )}
+
             {/* Quote Submission Card */}
             {(order.status === 'sourcing' || order.status === 'under_review' || order.status === 'quote_ready') && (
               <Card className="border-2 border-blue-200 bg-blue-50">

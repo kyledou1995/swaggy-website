@@ -108,6 +108,12 @@ export interface Order {
   custom_dimension_unit?: string | null;
   inspiration_images?: string[];
   logo_files?: string[];
+  // Packaging fields
+  packaging_required?: boolean;
+  packaging_product_protection?: string[];
+  packaging_individual?: string | null;
+  packaging_shipping_config?: string | null;
+  packaging_notes?: string | null;
 }
 
 export interface OrderUpdate {

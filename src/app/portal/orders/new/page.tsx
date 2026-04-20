@@ -51,8 +51,31 @@ interface ShipmentSplit {
 const STEPS = [
   { id: 1, label: 'Basic Info' },
   { id: 2, label: 'Product Details' },
-  { id: 3, label: 'Delivery' },
-  { id: 4, label: 'Review & Submit' },
+  { id: 3, label: 'Packaging' },
+  { id: 4, label: 'Delivery' },
+  { id: 5, label: 'Review & Submit' },
+];
+
+const PRODUCT_PROTECTION_OPTIONS = [
+  { id: 'poly_bag', label: 'Poly Bag', description: 'Clear plastic bag around each item' },
+  { id: 'bubble_wrap', label: 'Bubble Wrap', description: 'Extra cushioning for fragile items' },
+  { id: 'tissue_paper', label: 'Tissue Paper', description: 'Lightweight, elegant wrapping' },
+  { id: 'branded_sleeve', label: 'Branded Sleeve / Wrap', description: 'Custom printed band or sleeve with your branding' },
+  { id: 'shrink_wrap', label: 'Shrink Wrap', description: 'Tight-fitting plastic seal' },
+  { id: 'foam_insert', label: 'Foam Insert', description: 'Custom foam cutout for protection' },
+];
+
+const INDIVIDUAL_PACKAGING_OPTIONS = [
+  { id: 'none', label: 'No Individual Box', description: 'Products go directly into shipping cartons' },
+  { id: 'plain_box', label: 'Plain Box', description: 'Standard unbranded box per item' },
+  { id: 'custom_box', label: 'Custom Branded Box', description: 'We design and produce branded boxes for each item' },
+  { id: 'flat_boxes', label: 'Flat / Unfolded Boxes', description: 'We produce custom boxes but ship them flat — you assemble and pack at your warehouse' },
+];
+
+const SHIPPING_CONFIG_OPTIONS = [
+  { id: 'bulk_master', label: 'Bulk in Master Cartons', description: 'All products packed together in shipping cartons' },
+  { id: 'individual_in_master', label: 'Individually Boxed in Cartons', description: 'Each product boxed, then grouped into master cartons' },
+  { id: 'ready_to_ship', label: 'Ready to Ship Individually', description: 'Each product packaged and ready for direct-to-customer shipping' },
 ];
 
 const supabase = createClient();
@@ -90,6 +113,13 @@ export default function NewOrderPage() {
   // Company logo upload
   const [logoFiles, setLogoFiles] = useState<{ file: File; preview: string }[]>([]);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  // Packaging
+  const [needsPackaging, setNeedsPackaging] = useState<boolean | null>(null);
+  const [productProtection, setProductProtection] = useState<string[]>([]);
+  const [individualPackaging, setIndividualPackaging] = useState<string>('');
+  const [shippingConfig, setShippingConfig] = useState<string>('');
+  const [packagingNotes, setPackagingNotes] = useState('');
 
   // Delivery addresses
   const [addresses, setAddresses] = useState<DeliveryAddress[]>([]);
@@ -431,7 +461,8 @@ export default function NewOrderPage() {
   const handleNext = () => {
     if (currentStep === 1 && validateStep1()) setCurrentStep(2);
     else if (currentStep === 2 && validateStep2()) setCurrentStep(3);
-    else if (currentStep === 3 && validateStep3()) setCurrentStep(4);
+    else if (currentStep === 3) setCurrentStep(4); // Packaging step — always valid (optional)
+    else if (currentStep === 4 && validateStep3()) setCurrentStep(5);
   };
 
   const handleBack = () => {
@@ -504,6 +535,11 @@ export default function NewOrderPage() {
           custom_dimension_unit: isCustomMode && (customWidth || customHeight || customLength) ? 'inches' : null,
           inspiration_images: imageUrls.length > 0 ? imageUrls : [],
           logo_files: logoUrls.length > 0 ? logoUrls : [],
+          packaging_required: needsPackaging || false,
+          packaging_product_protection: needsPackaging ? productProtection : [],
+          packaging_individual: needsPackaging ? (individualPackaging || null) : null,
+          packaging_shipping_config: needsPackaging ? (shippingConfig || null) : null,
+          packaging_notes: needsPackaging ? (packagingNotes || null) : null,
         })
         .select()
         .single();
@@ -658,8 +694,9 @@ export default function NewOrderPage() {
             <h2 className="text-lg font-bold text-gray-900">
               {currentStep === 1 && 'Basic Order Information'}
               {currentStep === 2 && 'Product Details'}
-              {currentStep === 3 && 'Delivery Location'}
-              {currentStep === 4 && 'Review & Submit'}
+              {currentStep === 3 && 'Packaging Requirements'}
+              {currentStep === 4 && 'Delivery Location'}
+              {currentStep === 5 && 'Review & Submit'}
             </h2>
           </CardHeader>
 
@@ -1067,8 +1104,137 @@ export default function NewOrderPage() {
               </>
             )}
 
-            {/* Step 3: Delivery */}
+            {/* Step 3: Packaging */}
             {currentStep === 3 && (
+              <>
+                {/* Do you need custom packaging? */}
+                <div>
+                  <p className="text-gray-700 mb-4">
+                    Does this order require any special packaging beyond standard shipping?
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setNeedsPackaging(false)}
+                      className={`p-5 rounded-xl border-2 text-left transition-all ${
+                        needsPackaging === false
+                          ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <p className="font-semibold text-gray-900">No, standard is fine</p>
+                      <p className="text-sm text-gray-500 mt-1">Products will be bulk packed in standard shipping cartons</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNeedsPackaging(true)}
+                      className={`p-5 rounded-xl border-2 text-left transition-all ${
+                        needsPackaging === true
+                          ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <p className="font-semibold text-gray-900">Yes, I have specific requirements</p>
+                      <p className="text-sm text-gray-500 mt-1">Custom protection, branded boxes, special packing instructions</p>
+                    </button>
+                  </div>
+                </div>
+
+                {needsPackaging && (
+                  <div className="space-y-8">
+                    {/* Section 1: Product Protection */}
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-1">Product Protection</h3>
+                      <p className="text-sm text-gray-500 mb-3">How should each individual product be wrapped or protected? Select all that apply.</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {PRODUCT_PROTECTION_OPTIONS.map((opt) => {
+                          const isSelected = productProtection.includes(opt.id);
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => {
+                                setProductProtection((prev) =>
+                                  isSelected ? prev.filter((p) => p !== opt.id) : [...prev, opt.id]
+                                );
+                              }}
+                              className={`p-3 rounded-xl border-2 text-left transition-all ${
+                                isSelected
+                                  ? 'border-green-500 bg-green-50'
+                                  : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                            >
+                              <p className="font-medium text-sm text-gray-900">{opt.label}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">{opt.description}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Section 2: Individual Packaging */}
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-1">Individual Product Packaging</h3>
+                      <p className="text-sm text-gray-500 mb-3">Should each product be placed in its own box?</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {INDIVIDUAL_PACKAGING_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setIndividualPackaging(opt.id)}
+                            className={`p-4 rounded-xl border-2 text-left transition-all ${
+                              individualPackaging === opt.id
+                                ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <p className="font-medium text-gray-900">{opt.label}</p>
+                            <p className="text-sm text-gray-500 mt-0.5">{opt.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Section 3: Shipping Configuration */}
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-1">Shipping Configuration</h3>
+                      <p className="text-sm text-gray-500 mb-3">How should products be grouped for shipping?</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {SHIPPING_CONFIG_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setShippingConfig(opt.id)}
+                            className={`p-4 rounded-xl border-2 text-left transition-all ${
+                              shippingConfig === opt.id
+                                ? 'border-green-500 bg-green-50 ring-2 ring-green-200'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <p className="font-medium text-gray-900">{opt.label}</p>
+                            <p className="text-sm text-gray-500 mt-0.5">{opt.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Additional Notes */}
+                    <div>
+                      <Textarea
+                        label="Additional Packaging Notes (Optional)"
+                        placeholder="Any other packaging requirements? For example: specific box dimensions, insert cards, stickers, special labeling, etc."
+                        rows={3}
+                        value={packagingNotes}
+                        onChange={(e) => setPackagingNotes(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Step 4: Delivery */}
+            {currentStep === 4 && (
               <>
                 {addressesLoading ? (
                   <div className="text-center py-8 text-gray-500">Loading delivery addresses...</div>
@@ -1239,8 +1405,8 @@ export default function NewOrderPage() {
               </>
             )}
 
-            {/* Step 4: Review */}
-            {currentStep === 4 && (
+            {/* Step 5: Review */}
+            {currentStep === 5 && (
               <div className="space-y-6">
                 <div className="bg-gray-50 rounded-lg p-4 space-y-4">
                   {/* Show selected prefixed product */}
@@ -1361,6 +1527,53 @@ export default function NewOrderPage() {
                     </div>
                   )}
 
+                  {/* Packaging summary */}
+                  <div className="border-t border-gray-200 pt-4">
+                    <p className="text-sm text-gray-500 mb-2 flex items-center gap-1.5">
+                      <Package className="w-4 h-4" />
+                      Packaging
+                    </p>
+                    {!needsPackaging ? (
+                      <p className="text-sm text-gray-900">Standard packaging (no special requirements)</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {productProtection.length > 0 && (
+                          <div>
+                            <p className="text-xs text-gray-500">Product Protection</p>
+                            <p className="text-sm text-gray-900">
+                              {productProtection.map((p) => PRODUCT_PROTECTION_OPTIONS.find((o) => o.id === p)?.label).filter(Boolean).join(', ')}
+                            </p>
+                          </div>
+                        )}
+                        {individualPackaging && (
+                          <div>
+                            <p className="text-xs text-gray-500">Individual Packaging</p>
+                            <p className="text-sm text-gray-900">
+                              {INDIVIDUAL_PACKAGING_OPTIONS.find((o) => o.id === individualPackaging)?.label}
+                            </p>
+                          </div>
+                        )}
+                        {shippingConfig && (
+                          <div>
+                            <p className="text-xs text-gray-500">Shipping Configuration</p>
+                            <p className="text-sm text-gray-900">
+                              {SHIPPING_CONFIG_OPTIONS.find((o) => o.id === shippingConfig)?.label}
+                            </p>
+                          </div>
+                        )}
+                        {packagingNotes && (
+                          <div>
+                            <p className="text-xs text-gray-500">Notes</p>
+                            <p className="text-sm text-gray-900">{packagingNotes}</p>
+                          </div>
+                        )}
+                        {!productProtection.length && !individualPackaging && !shippingConfig && !packagingNotes && (
+                          <p className="text-sm text-gray-400 italic">Custom packaging selected but no specifics provided</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Delivery summary */}
                   <div className="border-t border-gray-200 pt-4">
                     <p className="text-sm text-gray-500 mb-2 flex items-center gap-1.5">
@@ -1406,7 +1619,7 @@ export default function NewOrderPage() {
                 Back
               </Button>
 
-              {currentStep < 4 ? (
+              {currentStep < 5 ? (
                 <Button variant="primary" onClick={handleNext}>
                   Next
                   <ArrowRight className="w-4 h-4 ml-2" />
