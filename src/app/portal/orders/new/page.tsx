@@ -125,7 +125,7 @@ export default function NewOrderPage() {
     const newErrors: Partial<NewOrderFormData> = {};
     if (!formData.productType) newErrors.productType = 'Product type is required';
     if (!formData.quantity || parseInt(formData.quantity) <= 0) newErrors.quantity = 'Quantity must be greater than 0';
-    if (!formData.targetPrice || parseFloat(formData.targetPrice) <= 0) newErrors.targetPrice = 'Target price must be greater than 0';
+    if (formData.targetPrice && parseFloat(formData.targetPrice) <= 0) newErrors.targetPrice = 'Target price must be greater than 0';
     if (!formData.targetDeliveryDate) newErrors.targetDeliveryDate = 'Target delivery date is required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -243,7 +243,7 @@ export default function NewOrderPage() {
           product_type: formData.productType,
           product_description: formData.productDescription,
           quantity: parseInt(formData.quantity),
-          target_price: parseFloat(formData.targetPrice),
+          target_price: formData.targetPrice ? parseFloat(formData.targetPrice) : null,
           target_delivery_date: formData.targetDeliveryDate,
           notes: formData.specificRequirements || '',
         })
@@ -412,13 +412,14 @@ export default function NewOrderPage() {
                   error={errors.quantity}
                 />
                 <Input
-                  label="Target Unit Price ($)"
+                  label="Target Unit Price ($) — Optional"
                   type="number"
                   placeholder="e.g., 8.50"
                   step="0.01"
                   value={formData.targetPrice}
                   onChange={(e) => handleInputChange('targetPrice', e.target.value)}
                   error={errors.targetPrice}
+                  helperText="Leave blank if you don't have a target price in mind."
                 />
                 <Input
                   label="Target Delivery Date"
@@ -641,7 +642,9 @@ export default function NewOrderPage() {
                     </div>
                     <div>
                       <p className="text-sm text-gray-500 mb-1">Target Unit Price</p>
-                      <p className="font-semibold text-gray-900">${formData.targetPrice}</p>
+                      <p className="font-semibold text-gray-900">
+                        {formData.targetPrice ? `$${formData.targetPrice}` : 'Not specified'}
+                      </p>
                     </div>
                     <div>
                       <p className="text-sm text-gray-500 mb-1">Target Delivery Date</p>
