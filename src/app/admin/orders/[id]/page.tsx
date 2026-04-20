@@ -280,10 +280,21 @@ export default function AdminOrderDetailPage() {
     try {
       const supabase = createClient();
 
+      // Build the update payload
+      const updatePayload: Record<string, any> = { status: newStatus };
+
+      // If setting to final_payment_required, calculate the remaining balance
+      if (newStatus === 'final_payment_required' && order) {
+        const pricePerUnit = order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit;
+        const totalAmount = (pricePerUnit || 0) * order.quantity;
+        const depositPaid = order.deposit_amount || 0;
+        updatePayload.final_payment_amount = totalAmount - depositPaid;
+      }
+
       // Update order status
       const { error: orderError } = await supabase
         .from('orders')
-        .update({ status: newStatus })
+        .update(updatePayload)
         .eq('id', orderId);
 
       if (orderError) throw orderError;
@@ -300,7 +311,7 @@ export default function AdminOrderDetailPage() {
 
       if (updateError) throw updateError;
 
-      setOrder({ ...order!, status: newStatus });
+      setOrder({ ...order!, ...updatePayload });
       setStatusFeedback({ type: 'success', message: `Status updated to "${ORDER_STATUS_LABELS[newStatus]}"` });
       setNewStatus('');
       setUpdateMessage('');

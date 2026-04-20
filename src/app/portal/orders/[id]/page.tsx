@@ -416,7 +416,7 @@ export default function OrderDetailPage() {
         body: JSON.stringify({
           orderId: order.id,
           orderNumber: order.order_number || order.id.slice(0, 8),
-          amount: order.final_payment_amount,
+          amount: order.final_payment_amount || (((order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit) || 0) * order.quantity - (order.deposit_amount || 0)),
           customerEmail: user.email,
           paymentType: 'final',
         }),
@@ -1027,53 +1027,58 @@ export default function OrderDetailPage() {
         )}
 
         {/* Final Payment Required */}
-        {order.status === 'final_payment_required' && order.final_payment_amount && (
-          <Card className="border-2 border-orange-300 bg-orange-50">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-orange-600" />
-                <h2 className="text-lg font-bold text-gray-900">Final Payment Required</h2>
-              </div>
-              <p className="text-sm text-gray-600 mt-1">
-                Your order is packed and ready to ship! Please complete the remaining balance to proceed with shipment.
-              </p>
-            </CardHeader>
-            <CardBody>
-              <div className="bg-white rounded-lg p-5 border border-orange-200 mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-600">Order Total</span>
-                  <span className="font-semibold text-gray-900">
-                    ${(((order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit) || 0) * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
+        {order.status === 'final_payment_required' && (() => {
+          const orderTotal = ((order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit) || 0) * order.quantity;
+          const depositPaid = order.deposit_amount || 0;
+          const remainingBalance = order.final_payment_amount || (orderTotal - depositPaid);
+          return (
+            <Card className="border-2 border-orange-300 bg-orange-50">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-orange-600" />
+                  <h2 className="text-lg font-bold text-gray-900">Final Payment Required</h2>
                 </div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-600">Deposit Paid (30%)</span>
-                  <span className="font-semibold text-green-600">
-                    -${(order.deposit_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
+                <p className="text-sm text-gray-600 mt-1">
+                  Your order is packed and ready to ship! Please complete the remaining balance to proceed with shipment.
+                </p>
+              </CardHeader>
+              <CardBody>
+                <div className="bg-white rounded-lg p-5 border border-orange-200 mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-600">Order Total</span>
+                    <span className="font-semibold text-gray-900">
+                      ${orderTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-600">Deposit Paid (30%)</span>
+                    <span className="font-semibold text-green-600">
+                      -${depositPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center border-t border-gray-200 pt-2">
+                    <span className="font-semibold text-gray-900">Remaining Balance</span>
+                    <span className="font-bold text-2xl text-orange-600">
+                      ${remainingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center border-t border-gray-200 pt-2">
-                  <span className="font-semibold text-gray-900">Remaining Balance</span>
-                  <span className="font-bold text-2xl text-orange-600">
-                    ${order.final_payment_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-              <Button
-                variant="primary"
-                onClick={handlePayFinalBalance}
-                isLoading={finalPaymentLoading}
-                className="w-full"
-              >
-                <CreditCard className="w-4 h-4 mr-2" />
-                Pay Balance — ${order.final_payment_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </Button>
-              <p className="text-xs text-gray-400 text-center mt-2">
-                Powered by Stripe. Accepts credit card, ACH, and wire transfers.
-              </p>
-            </CardBody>
-          </Card>
-        )}
+                <Button
+                  variant="primary"
+                  onClick={handlePayFinalBalance}
+                  isLoading={finalPaymentLoading}
+                  className="w-full"
+                >
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Pay Balance — ${remainingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Button>
+                <p className="text-xs text-gray-400 text-center mt-2">
+                  Powered by Stripe. Accepts credit card, ACH, and wire transfers.
+                </p>
+              </CardBody>
+            </Card>
+          );
+        })()}
 
         {/* Sample Approval */}
         {order.status === 'sample_approval_pending' && (
