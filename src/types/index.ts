@@ -13,6 +13,7 @@ export type OrderStatus =
   | 'manufacturing'
   | 'quality_check'
   | 'packing'
+  | 'final_payment_required'
   | 'preparing_to_ship'
   | 'in_transit'
   | 'delivered'
@@ -77,6 +78,11 @@ export interface Order {
   cancellation_reason?: string | null;
   cancelled_at?: string | null;
   cancelled_by?: string | null;
+  // Final payment fields
+  final_payment_amount?: number | null;
+  final_payment_paid?: boolean;
+  final_payment_paid_at?: string | null;
+  final_payment_stripe_id?: string | null;
   // Refund fields
   refund_amount?: number | null;
   refund_issued?: boolean;

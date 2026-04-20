@@ -48,6 +48,7 @@ export default function OrderDetailPage() {
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [voidReason, setVoidReason] = useState('');
   const [voidLoading, setVoidLoading] = useState(false);
+  const [finalPaymentLoading, setFinalPaymentLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -401,6 +402,37 @@ export default function OrderDetailPage() {
       console.error('Error creating payment:', error);
     } finally {
       setPaymentLoading(false);
+    }
+  };
+
+  const handlePayFinalBalance = async () => {
+    if (!order || !user) return;
+    setFinalPaymentLoading(true);
+
+    try {
+      const res = await fetch('/api/stripe/create-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          orderNumber: order.order_number || order.id.slice(0, 8),
+          amount: order.final_payment_amount,
+          customerEmail: user.email,
+          paymentType: 'final',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        console.error('No checkout URL returned:', data);
+      }
+    } catch (error) {
+      console.error('Error creating final payment:', error);
+    } finally {
+      setFinalPaymentLoading(false);
     }
   };
 
@@ -986,6 +1018,55 @@ export default function OrderDetailPage() {
               >
                 <CreditCard className="w-4 h-4 mr-2" />
                 Pay Deposit — ${order.deposit_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Button>
+              <p className="text-xs text-gray-400 text-center mt-2">
+                Powered by Stripe. Accepts credit card, ACH, and wire transfers.
+              </p>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Final Payment Required */}
+        {order.status === 'final_payment_required' && order.final_payment_amount && (
+          <Card className="border-2 border-orange-300 bg-orange-50">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-orange-600" />
+                <h2 className="text-lg font-bold text-gray-900">Final Payment Required</h2>
+              </div>
+              <p className="text-sm text-gray-600 mt-1">
+                Your order is packed and ready to ship! Please complete the remaining balance to proceed with shipment.
+              </p>
+            </CardHeader>
+            <CardBody>
+              <div className="bg-white rounded-lg p-5 border border-orange-200 mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Order Total</span>
+                  <span className="font-semibold text-gray-900">
+                    ${(((order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit) || 0) * order.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Deposit Paid (30%)</span>
+                  <span className="font-semibold text-green-600">
+                    -${(order.deposit_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center border-t border-gray-200 pt-2">
+                  <span className="font-semibold text-gray-900">Remaining Balance</span>
+                  <span className="font-bold text-2xl text-orange-600">
+                    ${order.final_payment_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+              <Button
+                variant="primary"
+                onClick={handlePayFinalBalance}
+                isLoading={finalPaymentLoading}
+                className="w-full"
+              >
+                <CreditCard className="w-4 h-4 mr-2" />
+                Pay Balance — ${order.final_payment_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Button>
               <p className="text-xs text-gray-400 text-center mt-2">
                 Powered by Stripe. Accepts credit card, ACH, and wire transfers.

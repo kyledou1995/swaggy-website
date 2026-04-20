@@ -459,6 +459,75 @@ export default function AdminOrderDetailPage() {
   const handleStartSourcing = () =>
     handleQuickAction('sourcing' as OrderStatus, 'Great news — your order has been accepted! We are now sourcing suppliers and preparing a quote for you. Please allow up to 5 business days for our team to complete this process. We\'ll notify you as soon as your quote is ready.');
 
+  const handleRequestFinalPayment = async () => {
+    if (!order) return;
+    setIsLoadingStatus(true);
+    setStatusFeedback(null);
+
+    try {
+      const supabase = createClient();
+      const pricePerUnit = order.selected_shipping === 'air' ? order.quote_air_price_per_unit : order.quote_ocean_price_per_unit;
+      const totalAmount = (pricePerUnit || 0) * order.quantity;
+      const depositPaid = order.deposit_amount || 0;
+      const remainingAmount = totalAmount - depositPaid;
+
+      await supabase.from('orders').update({
+        status: 'final_payment_required',
+        final_payment_amount: remainingAmount,
+      }).eq('id', orderId);
+
+      const msg = `Your order is packed and ready! The remaining balance of $${remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} is due before we can ship. Please complete the payment at your earliest convenience.`;
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: 'final_payment_required',
+        message: msg,
+        created_by: adminUser?.id,
+      }]);
+
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: adminUser?.id,
+        sender_role: 'admin',
+        message: msg,
+        attachments: [],
+      }]);
+
+      setOrder({ ...order, status: 'final_payment_required' as OrderStatus, final_payment_amount: remainingAmount });
+      setStatusFeedback({ type: 'success', message: msg });
+
+      if (order.client_id) {
+        await notifyOrgMembers({
+          orderId,
+          clientId: order.client_id,
+          type: 'order_status',
+          title: `Final Payment Required — #${order.order_number || orderId.slice(0, 8)}`,
+          body: msg,
+          supabaseClient: supabase,
+        });
+      }
+
+      // Refresh updates and messages
+      const { data: updatesData } = await supabase
+        .from('order_updates')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false });
+      setUpdates((updatesData as OrderUpdate[]) || []);
+
+      const { data: messagesData } = await supabase
+        .from('order_messages')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: true });
+      setMessages((messagesData as OrderMessage[]) || []);
+    } catch (error: any) {
+      setStatusFeedback({ type: 'error', message: error.message || 'Action failed' });
+    } finally {
+      setIsLoadingStatus(false);
+    }
+  };
+
   // Cancel order state and handler
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -1175,6 +1244,14 @@ export default function AdminOrderDetailPage() {
                     className="w-full"
                   >
                     Request Payment
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={handleRequestFinalPayment}
+                    isLoading={isLoadingStatus}
+                    className="w-full"
+                  >
+                    Request Final Payment
                   </Button>
                 </div>
               </CardBody>
