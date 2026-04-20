@@ -15,9 +15,10 @@ export const AdminNotificationBell: React.FC<AdminNotificationBellProps> = ({ us
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const isMarkingRef = useRef(false);
 
   const loadNotifications = async () => {
-    if (!userId) return;
+    if (!userId || isMarkingRef.current) return;
     const supabase = createClient();
 
     const { data } = await supabase
@@ -28,7 +29,7 @@ export const AdminNotificationBell: React.FC<AdminNotificationBellProps> = ({ us
       .order('created_at', { ascending: false })
       .limit(30);
 
-    if (data) {
+    if (data && !isMarkingRef.current) {
       setNotifications(data as AppNotification[]);
       setUnreadCount(data.filter((n: any) => !n.is_read).length);
     }
@@ -53,29 +54,40 @@ export const AdminNotificationBell: React.FC<AdminNotificationBellProps> = ({ us
   }, [isOpen]);
 
   const markAsRead = async (notifId: string) => {
+    isMarkingRef.current = true;
     const supabase = createClient();
-    await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('id', notifId);
 
     setNotifications((prev) =>
       prev.map((n) => (n.id === notifId ? { ...n, is_read: true } : n))
     );
     setUnreadCount((prev) => Math.max(0, prev - 1));
+
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', notifId);
+
+    isMarkingRef.current = false;
   };
 
   const markAllAsRead = async () => {
     if (!userId) return;
+    isMarkingRef.current = true;
     const supabase = createClient();
+
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setUnreadCount(0);
+
     await supabase
       .from('notifications')
       .update({ is_read: true })
       .eq('user_id', userId)
+      .eq('target_role', 'admin')
       .eq('is_read', false);
 
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    setUnreadCount(0);
+    isMarkingRef.current = false;
+    // Re-fetch to confirm DB state
+    setTimeout(() => loadNotifications(), 500);
   };
 
   const getTimeAgo = (dateStr: string) => {
