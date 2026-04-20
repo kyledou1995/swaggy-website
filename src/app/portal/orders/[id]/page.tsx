@@ -171,13 +171,19 @@ export default function OrderDetailPage() {
   const timelineSteps: TimelineStep[] = ORDER_TIMELINE.map((status) => {
     const statusLabel = ORDER_STATUS_LABELS[status];
     const update = updates.find((u) => u.status === status);
+    let message = update?.message;
+    // Add timeline disclaimer for sourcing stage when it's the current status
+    if (status === 'sourcing' && order.status === 'sourcing') {
+      const disclaimer = 'Please allow up to 5 business days for our team to source suppliers and prepare your quote.';
+      message = message ? `${message} — ${disclaimer}` : disclaimer;
+    }
     return {
       id: status,
       label: statusLabel,
       timestamp: update
         ? new Date(update.created_at).toLocaleDateString()
         : undefined,
-      message: update?.message,
+      message,
     };
   });
 
