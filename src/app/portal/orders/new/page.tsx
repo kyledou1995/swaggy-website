@@ -540,9 +540,12 @@ export default function NewOrderPage() {
                 <p className="text-sm text-gray-600 mb-1">Order Number</p>
                 <p className="text-xl font-bold text-green-600">{generatedOrderId}</p>
               </div>
-              <p className="text-sm text-gray-500 mb-6">
-                You will receive updates via email. Check your dashboard for more details.
-              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-left">
+                <p className="text-sm font-semibold text-amber-800 mb-1">What happens next?</p>
+                <p className="text-sm text-amber-700">
+                  Our team will review and analyze your order. Please allow up to <strong>3 business days</strong> for us to process and accept it. We&apos;ll notify you as soon as there&apos;s an update.
+                </p>
+              </div>
               <a href="/portal/orders">
                 <Button variant="primary">View My Orders</Button>
               </a>

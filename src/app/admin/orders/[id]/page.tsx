@@ -457,7 +457,7 @@ export default function AdminOrderDetailPage() {
     handleQuickAction('action_required' as OrderStatus, 'Payment is required to proceed with your order. Please complete the payment at your earliest convenience.');
 
   const handleStartSourcing = () =>
-    handleQuickAction('sourcing' as OrderStatus, 'We are now sourcing suppliers for your product. We will get back to you with pricing options shortly.');
+    handleQuickAction('sourcing' as OrderStatus, 'Great news — your order has been accepted! We are now sourcing suppliers and preparing a quote for you. Please allow up to 5 business days for our team to complete this process. We\'ll notify you as soon as your quote is ready.');
 
   // Cancel order state and handler
   const [showCancelModal, setShowCancelModal] = useState(false);
