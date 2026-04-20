@@ -860,9 +860,10 @@ export default function NewOrderPage() {
                         <input
                           type="number"
                           step="0.1"
+                          min="0"
                           placeholder="W"
                           value={customWidth}
-                          onChange={(e) => setCustomWidth(e.target.value)}
+                          onChange={(e) => { const v = e.target.value; if (v === '' || parseFloat(v) >= 0) setCustomWidth(v); }}
                           className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                         />
                       </div>
@@ -871,9 +872,10 @@ export default function NewOrderPage() {
                         <input
                           type="number"
                           step="0.1"
+                          min="0"
                           placeholder="H"
                           value={customHeight}
-                          onChange={(e) => setCustomHeight(e.target.value)}
+                          onChange={(e) => { const v = e.target.value; if (v === '' || parseFloat(v) >= 0) setCustomHeight(v); }}
                           className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                         />
                       </div>
@@ -882,9 +884,10 @@ export default function NewOrderPage() {
                         <input
                           type="number"
                           step="0.1"
+                          min="0"
                           placeholder="L"
                           value={customLength}
-                          onChange={(e) => setCustomLength(e.target.value)}
+                          onChange={(e) => { const v = e.target.value; if (v === '' || parseFloat(v) >= 0) setCustomLength(v); }}
                           className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                         />
                       </div>
