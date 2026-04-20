@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Send, FileText, Paperclip, Truck, MapPin, Star, Plane, Ship, DollarSign, CheckCircle, CreditCard, XCircle, AlertTriangle } from 'lucide-react';
+import { Send, FileText, Paperclip, Truck, MapPin, Star, Plane, Ship, DollarSign, CheckCircle, CreditCard, XCircle, AlertTriangle, Camera, Package } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody, CardHeader, CardFooter } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -45,6 +45,8 @@ export default function OrderDetailPage() {
   const [changingQuote, setChangingQuote] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [sampleQuantity, setSampleQuantity] = useState('1');
+  const [requestingSamples, setRequestingSamples] = useState(false);
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [voidReason, setVoidReason] = useState('');
   const [voidLoading, setVoidLoading] = useState(false);
@@ -402,6 +404,57 @@ export default function OrderDetailPage() {
       console.error('Error creating payment:', error);
     } finally {
       setPaymentLoading(false);
+    }
+  };
+
+  const handleRequestPhysicalSamples = async () => {
+    if (!user || !order) return;
+    const qty = parseInt(sampleQuantity);
+    if (!qty || qty < 1) return;
+
+    setRequestingSamples(true);
+    try {
+      const supabase = createClient();
+      const totalCost = qty * (order.sample_price_per_unit || 0);
+
+      await supabase.from('orders').update({
+        sample_physical_requested: true,
+        sample_quantity_requested: qty,
+        sample_quantity_approved: qty,
+      }).eq('id', orderId);
+
+      const msg = `I'd like to receive ${qty} physical sample(s). Total cost: $${totalCost.toFixed(2)} (${qty} × $${(order.sample_price_per_unit || 0).toFixed(2)}).`;
+
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: user.id,
+        sender_role: 'client',
+        message: msg,
+        attachments: [],
+      }]);
+
+      setOrder({ ...order, sample_physical_requested: true, sample_quantity_requested: qty, sample_quantity_approved: qty });
+      setAllMessages([...allMessages, {
+        id: `msg_${Date.now()}`,
+        order_id: orderId,
+        sender_id: user.id,
+        sender_role: 'client',
+        message: msg,
+        attachments: [],
+        created_at: new Date().toISOString(),
+      }]);
+
+      await notifyAdmins({
+        orderId,
+        type: 'order_status',
+        title: `Physical Samples Requested — #${order.order_number || orderId.slice(0, 8)}`,
+        body: `${user.full_name} requested ${qty} physical sample(s). Total: $${totalCost.toFixed(2)}`,
+        supabaseClient: supabase,
+      });
+    } catch (error) {
+      console.error('Error requesting samples:', error);
+    } finally {
+      setRequestingSamples(false);
     }
   };
 
@@ -1082,42 +1135,168 @@ export default function OrderDetailPage() {
 
         {/* Sample Approval */}
         {order.status === 'sample_approval_pending' && (
-          <Card>
+          <Card className="border-2 border-purple-200">
             <CardHeader>
-              <h2 className="text-lg font-bold text-gray-900">
-                Sample Approval Required
-              </h2>
+              <div className="flex items-center gap-2">
+                <Camera className="w-5 h-5 text-purple-600" />
+                <h2 className="text-lg font-bold text-gray-900">
+                  Sample Review
+                </h2>
+              </div>
             </CardHeader>
             <CardBody>
-              <p className="text-gray-700 mb-4">
-                We've sent you sample items for approval. Please review them and
-                confirm whether you'd like to proceed with manufacturing.
-              </p>
+              {/* Sample Photos */}
+              {order.sample_images && order.sample_images.length > 0 && (
+                <div className="mb-6">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Sample Photos</p>
+                  <div className="flex flex-wrap gap-3">
+                    {order.sample_images.map((url: string, idx: number) => (
+                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
+                        <img src={url} alt={`Sample ${idx + 1}`} className="w-28 h-28 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Description */}
+              {order.sample_description && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-sm font-medium text-gray-700 mb-1">Description from our team</p>
+                  <p className="text-gray-900">{order.sample_description}</p>
+                </div>
+              )}
+
+              {/* Quantity adjustment notice */}
+              {order.sample_quantity_approved && order.sample_quantity_requested && order.sample_quantity_approved !== order.sample_quantity_requested && (
+                <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm font-medium text-yellow-800">
+                    Sample quantity adjusted from {order.sample_quantity_requested} to {order.sample_quantity_approved}
+                  </p>
+                  {order.sample_quantity_note && (
+                    <p className="text-sm text-yellow-700 mt-1">Reason: {order.sample_quantity_note}</p>
+                  )}
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Updated total: ${((order.sample_quantity_approved) * (order.sample_price_per_unit || 0)).toFixed(2)}
+                  </p>
+                </div>
+              )}
+
+              {/* Shipped notice */}
+              {order.sample_shipped && (
+                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-green-800">
+                      Your {order.sample_quantity_approved || order.sample_quantity_requested} sample(s) have been shipped!
+                    </p>
+                    <p className="text-xs text-green-700">Estimated delivery: {order.sample_shipping_days} days</p>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
                 <p className="text-sm text-yellow-800">
-                  Please respond within 3 business days to avoid delays in your
-                  order.
+                  Please respond within 3 business days to avoid delays in your order.
                 </p>
               </div>
-            </CardBody>
-            <CardFooter>
-              <div className="flex gap-3">
-                <Button
-                  variant="primary"
-                  isLoading={approvalLoading}
-                  onClick={() => handleApproval(true)}
-                >
-                  Approve Sample
-                </Button>
-                <Button
-                  variant="secondary"
-                  isLoading={changesLoading}
-                  onClick={() => handleApproval(false)}
-                >
-                  Request Changes
-                </Button>
+
+              {/* Option 1: Approve from photos */}
+              <div className="border border-gray-200 rounded-xl p-5 mb-4">
+                <h3 className="font-semibold text-gray-900 mb-2">Option 1: Approve from Photos</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  If you're satisfied with the sample photos above, you can approve directly and we'll proceed to manufacturing.
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    variant="primary"
+                    isLoading={approvalLoading}
+                    onClick={() => handleApproval(true)}
+                  >
+                    Approve Sample
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    isLoading={changesLoading}
+                    onClick={() => handleApproval(false)}
+                  >
+                    Request Changes
+                  </Button>
+                </div>
               </div>
-            </CardFooter>
+
+              {/* Option 2: Request Physical Samples */}
+              {!order.sample_physical_requested ? (
+                <div className="border border-gray-200 rounded-xl p-5">
+                  <h3 className="font-semibold text-gray-900 mb-2">Option 2: Request Physical Samples</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Want to see and feel the product in person? We can ship physical samples to you.
+                  </p>
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-gray-600">Price per sample</span>
+                      <span className="font-semibold text-gray-900">${(order.sample_price_per_unit || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Estimated shipping</span>
+                      <span className="font-semibold text-gray-900">{order.sample_shipping_days || '—'} days</span>
+                    </div>
+                  </div>
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">How many samples?</label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={sampleQuantity}
+                        onChange={(e) => setSampleQuantity(e.target.value)}
+                      />
+                    </div>
+                    <div className="text-right pb-2">
+                      <p className="text-xs text-gray-500">Total</p>
+                      <p className="font-bold text-lg text-purple-600">
+                        ${((parseInt(sampleQuantity) || 0) * (order.sample_price_per_unit || 0)).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="primary"
+                    onClick={handleRequestPhysicalSamples}
+                    isLoading={requestingSamples}
+                    className="w-full mt-4"
+                  >
+                    <Package className="w-4 h-4 mr-2" />
+                    Request {sampleQuantity} Physical Sample{parseInt(sampleQuantity) !== 1 ? 's' : ''} — ${((parseInt(sampleQuantity) || 0) * (order.sample_price_per_unit || 0)).toFixed(2)}
+                  </Button>
+                </div>
+              ) : (
+                <div className="border border-purple-200 rounded-xl p-5 bg-purple-50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Package className="w-5 h-5 text-purple-600" />
+                    <h3 className="font-semibold text-gray-900">Physical Samples Requested</h3>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-purple-200">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm text-gray-600">Quantity</span>
+                      <span className="font-semibold text-gray-900">{order.sample_quantity_approved || order.sample_quantity_requested} sample(s)</span>
+                    </div>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-sm text-gray-600">Price per sample</span>
+                      <span className="font-semibold text-gray-900">${(order.sample_price_per_unit || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-t border-gray-200 pt-1 mt-1">
+                      <span className="font-semibold text-gray-900">Total</span>
+                      <span className="font-bold text-purple-600">
+                        ${((order.sample_quantity_approved || order.sample_quantity_requested || 0) * (order.sample_price_per_unit || 0)).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  {!order.sample_shipped && (
+                    <p className="text-sm text-purple-700 mt-3">Our team is preparing your samples for shipment.</p>
+                  )}
+                </div>
+              )}
+            </CardBody>
           </Card>
         )}
 

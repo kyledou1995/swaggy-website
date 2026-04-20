@@ -74,6 +74,16 @@ export interface Order {
   deposit_paid?: boolean;
   deposit_paid_at?: string | null;
   stripe_payment_intent_id?: string | null;
+  // Sample fields
+  sample_images?: string[];
+  sample_description?: string | null;
+  sample_price_per_unit?: number | null;
+  sample_shipping_days?: number | null;
+  sample_quantity_requested?: number | null;
+  sample_quantity_approved?: number | null;
+  sample_quantity_note?: string | null;
+  sample_physical_requested?: boolean;
+  sample_shipped?: boolean;
   // Cancellation fields
   cancellation_reason?: string | null;
   cancelled_at?: string | null;

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Send, FileText, AlertCircle, Plane, Ship, DollarSign, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Send, FileText, AlertCircle, Plane, Ship, DollarSign, CheckCircle, XCircle, AlertTriangle, Upload, Camera, Package } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardHeader, CardBody, CardFooter } from '@/components/ui/Card';
@@ -39,6 +39,20 @@ export default function AdminOrderDetailPage() {
   const [isLoadingMessage, setIsLoadingMessage] = useState(false);
   const [client, setClient] = useState<User | null>(null);
   const [adminUser, setAdminUser] = useState<{ id: string } | null>(null);
+
+  // Sample approval form state
+  const [showSampleForm, setShowSampleForm] = useState(false);
+  const [sampleImages, setSampleImages] = useState<File[]>([]);
+  const [sampleImagePreviews, setSampleImagePreviews] = useState<string[]>([]);
+  const [sampleDescription, setSampleDescription] = useState('');
+  const [samplePricePerUnit, setSamplePricePerUnit] = useState('');
+  const [sampleShippingDays, setSampleShippingDays] = useState('');
+  const [sampleSubmitting, setSampleSubmitting] = useState(false);
+  // Admin adjust sample quantity state
+  const [showAdjustQuantity, setShowAdjustQuantity] = useState(false);
+  const [adjustedQuantity, setAdjustedQuantity] = useState('');
+  const [adjustQuantityNote, setAdjustQuantityNote] = useState('');
+  const [adjustingQuantity, setAdjustingQuantity] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -496,8 +510,217 @@ export default function AdminOrderDetailPage() {
   const handleRequestInfo = () =>
     handleQuickAction('action_required' as OrderStatus, 'We need additional information from you to proceed with this order. Please check your messages and respond.');
 
-  const handleSendSample = () =>
-    handleQuickAction('sample_approval_pending' as OrderStatus, 'We have sent you sample items for approval. Please review them and let us know if you approve or want changes.');
+  const handleSampleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const newFiles = [...sampleImages, ...files].slice(0, 10);
+    setSampleImages(newFiles);
+    setSampleImagePreviews(newFiles.map((f) => URL.createObjectURL(f)));
+  };
+
+  const removeSampleImage = (idx: number) => {
+    const newFiles = sampleImages.filter((_, i) => i !== idx);
+    setSampleImages(newFiles);
+    setSampleImagePreviews(newFiles.map((f) => URL.createObjectURL(f)));
+  };
+
+  const handleSubmitSampleApproval = async () => {
+    if (sampleImages.length === 0) {
+      setStatusFeedback({ type: 'error', message: 'Please upload at least one sample photo.' });
+      return;
+    }
+    if (!samplePricePerUnit || parseFloat(samplePricePerUnit) < 0) {
+      setStatusFeedback({ type: 'error', message: 'Please enter a valid price per sample.' });
+      return;
+    }
+    if (!sampleShippingDays || parseInt(sampleShippingDays) < 0) {
+      setStatusFeedback({ type: 'error', message: 'Please enter valid shipping days.' });
+      return;
+    }
+
+    setSampleSubmitting(true);
+    setStatusFeedback(null);
+
+    try {
+      const supabase = createClient();
+
+      // Upload images to storage
+      const uploadedUrls: string[] = [];
+      for (const file of sampleImages) {
+        const ext = file.name.split('.').pop();
+        const path = `${orderId}/samples/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('order-inspiration').upload(path, file);
+        if (uploadError) throw uploadError;
+        const { data: urlData } = supabase.storage.from('order-inspiration').getPublicUrl(path);
+        uploadedUrls.push(urlData.publicUrl);
+      }
+
+      // Update order with sample info
+      await supabase.from('orders').update({
+        status: 'sample_approval_pending',
+        sample_images: uploadedUrls,
+        sample_description: sampleDescription || null,
+        sample_price_per_unit: parseFloat(samplePricePerUnit),
+        sample_shipping_days: parseInt(sampleShippingDays),
+        sample_physical_requested: false,
+        sample_shipped: false,
+        sample_quantity_requested: null,
+        sample_quantity_approved: null,
+        sample_quantity_note: null,
+      }).eq('id', orderId);
+
+      const msg = `Sample photos are ready for your review! We've uploaded ${uploadedUrls.length} photo(s) of your product samples.${sampleDescription ? `\n\nDescription: ${sampleDescription}` : ''}\n\nYou can approve directly from the photos, or request physical samples shipped to you at $${parseFloat(samplePricePerUnit).toFixed(2)} per sample (estimated ${sampleShippingDays} days shipping).`;
+
+      await supabase.from('order_updates').insert([{
+        order_id: orderId,
+        status: 'sample_approval_pending',
+        message: msg,
+        created_by: adminUser?.id,
+      }]);
+
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: adminUser?.id,
+        sender_role: 'admin',
+        message: msg,
+        attachments: uploadedUrls,
+      }]);
+
+      setOrder({
+        ...order!,
+        status: 'sample_approval_pending' as OrderStatus,
+        sample_images: uploadedUrls,
+        sample_description: sampleDescription || null,
+        sample_price_per_unit: parseFloat(samplePricePerUnit),
+        sample_shipping_days: parseInt(sampleShippingDays),
+        sample_physical_requested: false,
+        sample_shipped: false,
+      });
+      setStatusFeedback({ type: 'success', message: 'Sample photos sent for client approval!' });
+      setShowSampleForm(false);
+      setSampleImages([]);
+      setSampleImagePreviews([]);
+      setSampleDescription('');
+      setSamplePricePerUnit('');
+      setSampleShippingDays('');
+
+      if (order?.client_id) {
+        await notifyOrgMembers({
+          orderId,
+          clientId: order.client_id,
+          type: 'order_status',
+          title: `Sample Photos Ready — #${order.order_number || orderId.slice(0, 8)}`,
+          body: 'Sample photos are ready for your review. Please approve or request physical samples.',
+          supabaseClient: supabase,
+        });
+      }
+
+      // Refresh
+      const { data: updatesData } = await supabase.from('order_updates').select('*').eq('order_id', orderId).order('created_at', { ascending: false });
+      setUpdates((updatesData as OrderUpdate[]) || []);
+      const { data: messagesData } = await supabase.from('order_messages').select('*').eq('order_id', orderId).order('created_at', { ascending: true });
+      setMessages((messagesData as OrderMessage[]) || []);
+    } catch (error: any) {
+      setStatusFeedback({ type: 'error', message: error.message || 'Failed to submit samples.' });
+    } finally {
+      setSampleSubmitting(false);
+    }
+  };
+
+  const handleAdjustSampleQuantity = async () => {
+    if (!adjustedQuantity || parseInt(adjustedQuantity) < 1) {
+      setStatusFeedback({ type: 'error', message: 'Please enter a valid quantity.' });
+      return;
+    }
+    if (!adjustQuantityNote.trim()) {
+      setStatusFeedback({ type: 'error', message: 'Please provide a note explaining the quantity change.' });
+      return;
+    }
+
+    setAdjustingQuantity(true);
+    setStatusFeedback(null);
+
+    try {
+      const supabase = createClient();
+      const newQty = parseInt(adjustedQuantity);
+
+      await supabase.from('orders').update({
+        sample_quantity_approved: newQty,
+        sample_quantity_note: adjustQuantityNote,
+      }).eq('id', orderId);
+
+      const msg = `We've adjusted the number of physical samples to ${newQty}. Reason: ${adjustQuantityNote}\n\nUpdated total: $${(newQty * (order!.sample_price_per_unit || 0)).toFixed(2)} (${newQty} × $${(order!.sample_price_per_unit || 0).toFixed(2)})`;
+
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: adminUser?.id,
+        sender_role: 'admin',
+        message: msg,
+        attachments: [],
+      }]);
+
+      setOrder({ ...order!, sample_quantity_approved: newQty, sample_quantity_note: adjustQuantityNote });
+      setStatusFeedback({ type: 'success', message: `Sample quantity adjusted to ${newQty}.` });
+      setShowAdjustQuantity(false);
+      setAdjustedQuantity('');
+      setAdjustQuantityNote('');
+
+      if (order?.client_id) {
+        await notifyOrgMembers({
+          orderId,
+          clientId: order.client_id,
+          type: 'order_status',
+          title: `Sample Quantity Adjusted — #${order.order_number || orderId.slice(0, 8)}`,
+          body: msg,
+          supabaseClient: supabase,
+        });
+      }
+
+      const { data: messagesData } = await supabase.from('order_messages').select('*').eq('order_id', orderId).order('created_at', { ascending: true });
+      setMessages((messagesData as OrderMessage[]) || []);
+    } catch (error: any) {
+      setStatusFeedback({ type: 'error', message: error.message || 'Failed to adjust quantity.' });
+    } finally {
+      setAdjustingQuantity(false);
+    }
+  };
+
+  const handleConfirmSampleShipped = async () => {
+    setIsLoadingStatus(true);
+    try {
+      const supabase = createClient();
+      await supabase.from('orders').update({ sample_shipped: true }).eq('id', orderId);
+
+      const qty = order!.sample_quantity_approved || order!.sample_quantity_requested || 0;
+      const msg = `Your ${qty} physical sample(s) have been shipped! Estimated delivery: ${order!.sample_shipping_days} days. Please review them upon arrival and let us know if you approve.`;
+
+      await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: adminUser?.id,
+        sender_role: 'admin',
+        message: msg,
+        attachments: [],
+      }]);
+
+      setOrder({ ...order!, sample_shipped: true });
+      setStatusFeedback({ type: 'success', message: 'Samples marked as shipped!' });
+
+      if (order?.client_id) {
+        await notifyOrgMembers({
+          orderId, clientId: order.client_id, type: 'order_status',
+          title: `Samples Shipped — #${order.order_number || orderId.slice(0, 8)}`,
+          body: msg,
+          supabaseClient: supabase,
+        });
+      }
+
+      const { data: messagesData } = await supabase.from('order_messages').select('*').eq('order_id', orderId).order('created_at', { ascending: true });
+      setMessages((messagesData as OrderMessage[]) || []);
+    } catch (error: any) {
+      setStatusFeedback({ type: 'error', message: error.message || 'Failed to mark as shipped.' });
+    } finally {
+      setIsLoadingStatus(false);
+    }
+  };
 
   const handleRequestPayment = () =>
     handleQuickAction('action_required' as OrderStatus, 'Payment is required to proceed with your order. Please complete the payment at your earliest convenience.');
@@ -1214,6 +1437,234 @@ export default function AdminOrderDetailPage() {
               </Card>
             )}
 
+            {/* Sample Approval Form (admin uploads photos + sets price/shipping) */}
+            {showSampleForm && (
+              <Card className="border-2 border-purple-200 bg-purple-50">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-5 h-5 text-purple-600" />
+                    <h2 className="text-lg font-semibold text-gray-900">Send Samples for Approval</h2>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Upload sample photos, add a description, and set the cost for physical sample shipping.
+                  </p>
+                </CardHeader>
+                <CardBody>
+                  <div className="space-y-4">
+                    {/* Photo Upload */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Sample Photos <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex flex-wrap gap-3 mb-2">
+                        {sampleImagePreviews.map((url, idx) => (
+                          <div key={idx} className="relative group">
+                            <img src={url} alt={`Sample ${idx + 1}`} className="w-24 h-24 rounded-lg object-cover border border-gray-200" />
+                            <button
+                              onClick={() => removeSampleImage(idx)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        {sampleImages.length < 10 && (
+                          <label className="w-24 h-24 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-purple-400 transition-colors">
+                            <Upload className="w-5 h-5 text-gray-400" />
+                            <span className="text-xs text-gray-400 mt-1">Upload</span>
+                            <input type="file" accept="image/*" multiple className="hidden" onChange={handleSampleImageSelect} />
+                          </label>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500">Upload up to 10 photos. These will be shown to the client.</p>
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Description / Comments</label>
+                      <Textarea
+                        placeholder="Describe the samples, materials, colors, any notes for the client..."
+                        rows={3}
+                        value={sampleDescription}
+                        onChange={(e) => setSampleDescription(e.target.value)}
+                      />
+                    </div>
+
+                    {/* Price and Shipping */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Price per Sample <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={samplePricePerUnit}
+                            onChange={(e) => setSamplePricePerUnit(e.target.value)}
+                            className="pl-7"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Cost to ship each sample to client</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Estimated Shipping Days <span className="text-red-500">*</span>
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="e.g. 7"
+                          value={sampleShippingDays}
+                          onChange={(e) => setSampleShippingDays(e.target.value)}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Days to deliver physical samples</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardBody>
+                <CardFooter>
+                  <div className="flex gap-3">
+                    <Button variant="primary" onClick={handleSubmitSampleApproval} isLoading={sampleSubmitting}>
+                      Send to Client for Approval
+                    </Button>
+                    <Button variant="secondary" onClick={() => { setShowSampleForm(false); setSampleImages([]); setSampleImagePreviews([]); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </CardFooter>
+              </Card>
+            )}
+
+            {/* Sample Management (when client requested physical samples) */}
+            {order.status === 'sample_approval_pending' && order.sample_physical_requested && (
+              <Card className="border-2 border-purple-200 bg-purple-50">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Package className="w-5 h-5 text-purple-600" />
+                    <h2 className="text-lg font-semibold text-gray-900">Physical Samples Requested</h2>
+                  </div>
+                </CardHeader>
+                <CardBody>
+                  <div className="space-y-4">
+                    <div className="bg-white rounded-lg p-4 border border-purple-200">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm text-gray-600">Client Requested</span>
+                        <span className="font-bold text-gray-900">{order.sample_quantity_requested} sample(s)</span>
+                      </div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm text-gray-600">Price per Sample</span>
+                        <span className="font-semibold text-gray-900">${(order.sample_price_per_unit || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm text-gray-600">Estimated Shipping</span>
+                        <span className="font-semibold text-gray-900">{order.sample_shipping_days} days</span>
+                      </div>
+                      <div className="flex justify-between items-center border-t border-gray-200 pt-2">
+                        <span className="font-semibold text-gray-900">Total Cost</span>
+                        <span className="font-bold text-lg text-purple-600">
+                          ${((order.sample_quantity_approved || order.sample_quantity_requested || 0) * (order.sample_price_per_unit || 0)).toFixed(2)}
+                        </span>
+                      </div>
+                      {order.sample_quantity_approved && order.sample_quantity_approved !== order.sample_quantity_requested && (
+                        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
+                          <p className="font-medium text-yellow-800">Adjusted to {order.sample_quantity_approved} sample(s)</p>
+                          {order.sample_quantity_note && <p className="text-yellow-700 text-xs mt-1">Reason: {order.sample_quantity_note}</p>}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Adjust Quantity */}
+                    {!showAdjustQuantity ? (
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => {
+                            setShowAdjustQuantity(true);
+                            setAdjustedQuantity(String(order.sample_quantity_approved || order.sample_quantity_requested || ''));
+                          }}
+                          className="text-sm text-purple-600 hover:text-purple-800 font-medium underline underline-offset-2"
+                        >
+                          Adjust Quantity
+                        </button>
+                        {!order.sample_shipped && (
+                          <Button variant="primary" onClick={handleConfirmSampleShipped} isLoading={isLoadingStatus} size="sm">
+                            Mark Samples as Shipped
+                          </Button>
+                        )}
+                        {order.sample_shipped && (
+                          <Badge variant="success">
+                            <CheckCircle className="w-3 h-3 mr-1" /> Samples Shipped
+                          </Badge>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3 bg-white rounded-lg p-4 border border-gray-200">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">New Quantity</label>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={adjustedQuantity}
+                            onChange={(e) => setAdjustedQuantity(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Reason for Change <span className="text-red-500">*</span>
+                          </label>
+                          <Textarea
+                            placeholder="Explain why the quantity was changed..."
+                            rows={2}
+                            value={adjustQuantityNote}
+                            onChange={(e) => setAdjustQuantityNote(e.target.value)}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="primary" size="sm" onClick={handleAdjustSampleQuantity} isLoading={adjustingQuantity}>
+                            Save
+                          </Button>
+                          <Button variant="secondary" size="sm" onClick={() => setShowAdjustQuantity(false)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardBody>
+              </Card>
+            )}
+
+            {/* Sample Photos Display (when sample_approval_pending and photos exist) */}
+            {order.status === 'sample_approval_pending' && order.sample_images && order.sample_images.length > 0 && !order.sample_physical_requested && (
+              <Card className="border border-purple-200">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-5 h-5 text-purple-600" />
+                    <h2 className="text-lg font-semibold text-gray-900">Sample Photos Sent</h2>
+                  </div>
+                </CardHeader>
+                <CardBody>
+                  <div className="flex flex-wrap gap-3 mb-3">
+                    {order.sample_images.map((url: string, idx: number) => (
+                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
+                        <img src={url} alt={`Sample ${idx + 1}`} className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
+                      </a>
+                    ))}
+                  </div>
+                  {order.sample_description && (
+                    <p className="text-sm text-gray-700"><span className="font-medium">Description:</span> {order.sample_description}</p>
+                  )}
+                  <p className="text-sm text-gray-500 mt-2">
+                    Price per sample: ${(order.sample_price_per_unit || 0).toFixed(2)} · Shipping: {order.sample_shipping_days} days
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Waiting for client to approve from photos or request physical samples.</p>
+                </CardBody>
+              </Card>
+            )}
+
             {/* Status Timeline */}
             <Card>
               <CardHeader>
@@ -1304,8 +1755,7 @@ export default function AdminOrderDetailPage() {
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={handleSendSample}
-                    isLoading={isLoadingStatus}
+                    onClick={() => setShowSampleForm(true)}
                     className="w-full"
                   >
                     Send for Sample Approval
