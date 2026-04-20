@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { createClient } from '@/lib/supabase';
+import { notifyAdmins } from '@/lib/notifications';
 import { Order, OrderMessage, User } from '@/types';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
 
@@ -201,6 +202,15 @@ export default function PortalMessagesPage() {
         t.order.id === selectedThread.order.id ? updatedThread : t
       ));
       setNewMessage('');
+
+      // Notify admins about the new message
+      await notifyAdmins({
+        orderId: selectedThread.order.id,
+        type: 'new_message',
+        title: `New message from ${user.full_name}`,
+        body: newMessage.trim().length > 100 ? newMessage.trim().slice(0, 100) + '...' : newMessage.trim(),
+        supabaseClient: supabase,
+      });
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {
