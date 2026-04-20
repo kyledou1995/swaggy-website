@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { StatusTimeline, TimelineStep } from '@/components/ui/StatusTimeline';
 import { createClient } from '@/lib/supabase';
 import { ORDER_STATUS_LABELS, ORDER_TIMELINE } from '@/lib/constants';
+import { notifyAdmins } from '@/lib/notifications';
 import { Order, OrderUpdate, OrderMessage, OrderSpecification, User, OrderShipment, DeliveryAddress } from '@/types';
 
 const getStatusVariant = (status: string) => {
@@ -209,6 +210,15 @@ export default function OrderDetailPage() {
 
     setAllMessages([...allMessages, newMsg]);
     setNewMessage('');
+
+    // Notify admins
+    await notifyAdmins({
+      orderId,
+      type: 'new_message',
+      title: `New message from ${user.full_name}`,
+      body: newMessage.length > 100 ? newMessage.slice(0, 100) + '...' : newMessage,
+      supabaseClient: supabase,
+    });
   };
 
   const handleApproval = async (approved: boolean) => {
@@ -253,6 +263,15 @@ export default function OrderDetailPage() {
         };
         setAllMessages([...allMessages, response]);
         setOrder({ ...order!, status: 'sample_approved' });
+
+        // Notify admins
+        await notifyAdmins({
+          orderId,
+          type: 'order_status',
+          title: `Sample Approved — #${order.order_number || orderId.slice(0, 8)}`,
+          body: `${user.full_name} approved the samples. Ready for manufacturing.`,
+          supabaseClient: supabase,
+        });
       } catch (error) {
         console.error('Error approving sample:', error);
       } finally {
@@ -273,6 +292,15 @@ export default function OrderDetailPage() {
           message: 'Client requested changes to samples.',
           updated_by: user.id,
         }]);
+
+        // Notify admins
+        await notifyAdmins({
+          orderId,
+          type: 'order_status',
+          title: `Sample Changes Requested — #${order!.order_number || orderId.slice(0, 8)}`,
+          body: `${user.full_name} requested changes to the samples.`,
+          supabaseClient: supabase,
+        });
       } catch (error) {
         console.error('Error requesting changes:', error);
       } finally {
@@ -320,6 +348,15 @@ export default function OrderDetailPage() {
         status: 'deposit_required' as any,
       });
       setChangingQuote(false);
+
+      // Notify admins
+      await notifyAdmins({
+        orderId,
+        type: 'order_status',
+        title: `Quote Accepted — #${order.order_number || orderId.slice(0, 8)}`,
+        body: `${user.full_name} selected DDP ${selectedQuoteOption === 'air' ? 'Air' : 'Ocean'} Freight at $${pricePerUnit?.toFixed(2)}/unit. Deposit of $${depositAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} pending.`,
+        supabaseClient: supabase,
+      });
     } catch (error) {
       console.error('Error selecting shipping:', error);
     } finally {

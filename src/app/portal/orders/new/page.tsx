@@ -22,6 +22,7 @@ import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
 import { createClient } from '@/lib/supabase';
+import { notifyAdmins } from '@/lib/notifications';
 import { PRODUCT_TYPES } from '@/lib/constants';
 import { DeliveryAddress } from '@/types';
 
@@ -285,6 +286,14 @@ export default function NewOrderPage() {
           // Order was created, just shipments failed — not fatal
         }
       }
+
+      // Notify admins about new order
+      await notifyAdmins({
+        orderId: data.id,
+        type: 'order_status',
+        title: `New Order Submitted — ${orderNumber}`,
+        body: `${userName} (${companyName}) submitted a new order for ${parseInt(formData.quantity).toLocaleString()} ${formData.productType} units.`,
+      });
 
       setGeneratedOrderId(orderNumber);
       setShowSuccess(true);

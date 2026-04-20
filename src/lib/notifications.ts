@@ -109,3 +109,50 @@ export async function notifyOrgMembers({
 
   return { error: null };
 }
+
+/**
+ * Create notifications for all admin users.
+ * Used when a client takes an action (new order, message, payment, etc.)
+ */
+export async function notifyAdmins({
+  orderId,
+  type,
+  title,
+  body,
+  supabaseClient,
+}: {
+  orderId?: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  supabaseClient?: SupabaseClient;
+}) {
+  const supabase = supabaseClient || createClient();
+
+  // Get all admin users
+  const { data: admins } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('role', 'admin');
+
+  if (!admins || admins.length === 0) {
+    console.warn('No admin users found for notification');
+    return { error: null };
+  }
+
+  const notifications = admins.map((admin: any) => ({
+    user_id: admin.id,
+    type,
+    title,
+    body,
+    order_id: orderId || null,
+    is_read: false,
+    email_sent: false,
+  }));
+
+  const { error } = await supabase.from('notifications').insert(notifications);
+  if (error) {
+    console.error('Error creating admin notifications:', error);
+  }
+  return { error };
+}

@@ -13,6 +13,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { AdminNotificationBell } from '@/components/admin/AdminNotificationBell';
 import { createClient } from '@/lib/supabase';
 import { User } from '@/types';
 
@@ -174,6 +175,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Header Bar */}
+        <div className="h-14 border-b border-gray-200 bg-white flex items-center justify-end px-6 flex-shrink-0">
+          {!isLoading && user && (
+            <AdminNotificationBell userId={user.id} />
+          )}
+        </div>
+
         <div className="flex-1 overflow-auto bg-white">
           <div className="p-8">
             {children}

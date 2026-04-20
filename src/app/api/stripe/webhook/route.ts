@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (orderData?.client_id) {
+        // Notify the client
         await supabase.from('notifications').insert([{
           user_id: orderData.client_id,
           type: 'order_status',
@@ -80,6 +81,26 @@ export async function POST(request: NextRequest) {
           is_read: false,
           email_sent: false,
         }]);
+
+        // Notify all admins
+        const { data: admins } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('role', 'admin');
+
+        if (admins && admins.length > 0) {
+          await supabase.from('notifications').insert(
+            admins.map((admin: any) => ({
+              user_id: admin.id,
+              type: 'order_status',
+              title: `Deposit Received — #${orderData.order_number || orderId.slice(0, 8)}`,
+              body: `Client paid the deposit of $${(session.amount_total ? (session.amount_total / 100).toLocaleString(undefined, { minimumFractionDigits: 2 }) : 'N/A')}. Order is now active.`,
+              order_id: orderId,
+              is_read: false,
+              email_sent: false,
+            }))
+          );
+        }
       }
     }
   }
