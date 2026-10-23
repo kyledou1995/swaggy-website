@@ -1,166 +1,106 @@
 'use client';
 
-import { CheckCircle2, Circle, Clock } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Check } from 'lucide-react';
+import { useReducedMotion } from '@/lib/useInView';
+
+const STAGES = [
+  { pill: 'Sourcing', width: 8 },
+  { pill: 'Quote ready', width: 24 },
+  { pill: 'Sample approved', width: 45 },
+  { pill: 'In production', width: 66 },
+  { pill: 'Shipped', width: 85 },
+  { pill: 'Delivered', width: 100 },
+];
+const LABELS = ['Sourcing', 'Quote', 'Sample', 'Production', 'Shipped', 'Delivered'];
+
+function Toast({ show, children, className }: { show: boolean; children: React.ReactNode; className: string }) {
+  return (
+    <div
+      className={`absolute right-0 sm:-right-5 z-10 flex items-center gap-2.5 bg-gray-900 text-white text-sm px-3.5 py-2.5 rounded-xl shadow-[0_12px_30px_rgba(0,0,0,0.25)] transition-all duration-500 ease-[cubic-bezier(.2,.8,.2,1)] ${
+        show ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2.5 scale-95'
+      } ${className}`}
+    >
+      <span className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+        <Check size={12} strokeWidth={3} />
+      </span>
+      {children}
+    </div>
+  );
+}
 
 export default function PlatformPreview() {
-  const orders = [
-    {
-      id: 'ORD-001',
-      product: 'Custom Logo T-Shirts',
-      quantity: '2,500 units',
-      status: 'completed',
-      stage: 'Delivered',
-      progress: 100,
-    },
-    {
-      id: 'ORD-002',
-      product: 'Branded Hoodies',
-      quantity: '1,200 units',
-      status: 'in-progress',
-      stage: 'Quality Check',
-      progress: 75,
-    },
-    {
-      id: 'ORD-003',
-      product: 'Custom Caps',
-      quantity: '500 units',
-      status: 'pending',
-      stage: 'Sample Approval',
-      progress: 40,
-    },
-  ];
+  const [step, setStep] = useState(0);
+  const reduced = useReducedMotion();
+  const i = reduced ? STAGES.length - 1 : step;
 
-  const stages = ['Submitted', 'Sourcing', 'Sample Approval', 'Quality Check', 'Shipped', 'Delivered'];
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'text-emerald-600';
-      case 'in-progress':
-        return 'text-blue-600';
-      default:
-        return 'text-gray-400';
-    }
-  };
+  useEffect(() => {
+    if (reduced) return;
+    const id = setInterval(() => setStep((v) => (v + 1) % STAGES.length), 1800);
+    return () => clearInterval(id);
+  }, [reduced]);
 
   return (
-    <section
-      id="platform"
-      className="py-20 px-4 sm:px-6 lg:px-8 bg-white"
-    >
-      <div className="max-w-6xl mx-auto">
-        {/* Section Header */}
-        <div className="text-center mb-16">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
-            Your Command Center
+    <section id="platform" className="py-20 px-4 sm:px-6 lg:px-8 bg-white">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+        <div>
+          <p className="text-sm font-semibold text-emerald-600 uppercase tracking-wide mb-3">Your command center</p>
+          <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-gray-900 mb-5 leading-[1.1]">
+            Watch your order move. In real time.
           </h2>
-          <p className="text-lg text-gray-600">
-            Track orders in real time from submission to delivery.
+          <p className="text-lg text-gray-600 leading-relaxed mb-8">
+            Every quote, sample, inspection, and shipment shows up in your portal the moment it happens. No chasing
+            suppliers on WhatsApp.
           </p>
+          <Link
+            href="/features"
+            className="inline-block px-6 py-3 border-2 border-gray-300 text-gray-900 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            See all features
+          </Link>
         </div>
 
-        {/* Dashboard Preview */}
-        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200 p-8 shadow-sm overflow-hidden">
-          {/* Dashboard Header */}
-          <div className="mb-8 pb-6 border-b border-gray-200">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
-              Order Dashboard
-            </h3>
-            <p className="text-sm text-gray-600">
-              Real-time tracking for all your orders
-            </p>
-          </div>
+        <div className="relative h-[400px]" aria-hidden="true">
+          <Toast show={i === 2 || i === 3} className="top-0">
+            Sample approved by your team
+          </Toast>
 
-          {/* Orders List */}
-          <div className="space-y-6">
-            {orders.map((order, index) => (
-              <div
-                key={order.id}
-                className="bg-white rounded-lg border border-gray-200 p-6 hover:border-emerald-200 transition-colors"
-              >
-                {/* Order Header */}
-                <div className="flex items-start justify-between mb-6">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Order ID</p>
-                    <h4 className="text-lg font-bold text-gray-900">
-                      {order.id}
-                    </h4>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-gray-900">
-                      {order.product}
-                    </p>
-                    <p className="text-sm text-gray-600">{order.quantity}</p>
-                  </div>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-medium text-gray-700">
-                      {order.stage}
-                    </p>
-                    <p className="text-sm font-bold text-gray-900">
-                      {order.progress}%
-                    </p>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        order.status === 'completed'
-                          ? 'bg-emerald-500'
-                          : order.status === 'in-progress'
-                          ? 'bg-blue-500'
-                          : 'bg-gray-300'
-                      }`}
-                      style={{ width: `${order.progress}%` }}
-                    ></div>
-                  </div>
-                </div>
-
-                {/* Timeline/Stages */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                  {stages.map((stage, stageIndex) => {
-                    const isCompleted = stageIndex < Math.ceil((order.progress / 100) * stages.length);
-                    const isCurrent = stageIndex === Math.ceil((order.progress / 100) * stages.length) - 1;
-
-                    return (
-                      <div key={stage} className="flex items-center gap-2 flex-shrink-0">
-                        {isCompleted ? (
-                          <CheckCircle2 size={16} className="text-emerald-500" />
-                        ) : isCurrent ? (
-                          <Clock size={16} className="text-blue-500 animate-pulse" />
-                        ) : (
-                          <Circle size={16} className="text-gray-300" />
-                        )}
-                        <span
-                          className={`text-xs whitespace-nowrap ${
-                            isCompleted
-                              ? 'text-emerald-700 font-medium'
-                              : isCurrent
-                              ? 'text-blue-700 font-medium'
-                              : 'text-gray-500'
-                          }`}
-                        >
-                          {stage}
-                        </span>
-                        {stageIndex < stages.length - 1 && (
-                          <div className="w-4 h-px bg-gray-300 flex-shrink-0"></div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+          <div className="absolute inset-x-0 top-12 bg-white border border-gray-200 rounded-2xl p-6 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.18)] animate-merchin-float">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="font-semibold text-gray-900">Order #MRC-1042</p>
+                <p className="text-xs text-gray-500 mt-0.5">Custom tote bags · 1,000 units</p>
               </div>
-            ))}
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 whitespace-nowrap">
+                {STAGES[i].pill}
+              </span>
+            </div>
+
+            <div className="h-2 bg-gray-100 rounded-full mt-5 mb-3.5 overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-[width] duration-1000 ease-[cubic-bezier(.2,.8,.2,1)]"
+                style={{ width: `${STAGES[i].width}%` }}
+              />
+            </div>
+            <div className="grid grid-cols-6 gap-1 text-[10.5px]">
+              {LABELS.map((l, k) => (
+                <span key={l} className={`transition-colors ${k <= i ? 'text-emerald-600 font-semibold' : 'text-gray-400'}`}>
+                  {l}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-gray-100 space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-gray-500">Shipping</span><span className="font-semibold text-gray-900">DDP Ocean</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Landed cost</span><span className="font-semibold text-gray-900">$5.75 / unit</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">ETA</span><span className="font-semibold text-gray-900">Jun 15</span></div>
+            </div>
           </div>
 
-          {/* Footer Message */}
-          <div className="mt-8 pt-6 border-t border-gray-200 text-center">
-            <p className="text-sm text-gray-600">
-              Get instant updates via email and SMS throughout the production process.
-            </p>
-          </div>
+          <Toast show={i === 4 || i === 5} className="bottom-2">
+            Passed quality inspection · 0 defects
+          </Toast>
         </div>
       </div>
     </section>

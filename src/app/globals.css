@@ -40,3 +40,37 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* ── Landing page animations ── */
+@keyframes merchin-ping {
+  70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.animate-merchin-ping {
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  animation: merchin-ping 1.8s infinite;
+}
+@keyframes merchin-float {
+  50% { transform: translateY(-8px); }
+}
+.animate-merchin-float { animation: merchin-float 6s ease-in-out infinite; }
+@keyframes merchin-marquee {
+  to { transform: translateX(-50%); }
+}
+.animate-merchin-marquee { animation: merchin-marquee 36s linear infinite; }
+.animate-merchin-marquee-rev { animation: merchin-marquee 36s linear infinite reverse; }
+.merchin-marquee:hover .animate-merchin-marquee,
+.merchin-marquee:hover .animate-merchin-marquee-rev { animation-play-state: paused; }
+.merchin-fade-edges {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
