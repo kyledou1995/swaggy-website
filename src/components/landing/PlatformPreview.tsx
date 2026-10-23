@@ -83,7 +83,10 @@ export default function PlatformPreview() {
                 style={{ width: `${STAGES[i].width}%` }}
               />
             </div>
-            <div className="grid grid-cols-6 gap-1 text-[10.5px]">
+            <p className="sm:hidden text-[11px] font-semibold text-emerald-600">
+              Step {i + 1} of {LABELS.length} · {LABELS[i]}
+            </p>
+            <div className="hidden sm:grid grid-cols-6 gap-1 text-[10.5px]">
               {LABELS.map((l, k) => (
                 <span key={l} className={`transition-colors ${k <= i ? 'text-emerald-600 font-semibold' : 'text-gray-400'}`}>
                   {l}

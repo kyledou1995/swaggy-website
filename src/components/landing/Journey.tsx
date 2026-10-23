@@ -86,7 +86,7 @@ export default function Journey() {
           <p className="text-lg text-gray-600">One partner for every step. You watch it happen.</p>
         </div>
 
-        <div className="relative h-[300px] sm:h-[320px] mt-20 sm:mt-14">
+        <div className="relative h-[300px] sm:h-[320px] mt-20 sm:mt-14 mx-5 sm:mx-0">
           {/* Live status card */}
           <div className="absolute -top-16 sm:-top-8 left-0 right-0 sm:left-auto sm:min-w-[260px] flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.06)] z-10">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-merchin-ping shrink-0" />
