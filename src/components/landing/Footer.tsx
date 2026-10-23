@@ -1,31 +1,31 @@
 'use client';
 
 import Link from 'next/link';
-import { Mail, Link2, Globe } from 'lucide-react';
+import { Mail } from 'lucide-react';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
 
   const links = {
     company: [
-      { label: 'About Us', href: '#' },
-      { label: 'Blog', href: '#' },
-      { label: 'Careers', href: '#' },
+      { label: 'About Us', href: '/about' },
+      { label: 'Blog', href: '/blog' },
+      { label: 'Careers', href: '/careers' },
     ],
     platform: [
-      { label: 'Features', href: '#' },
-      { label: 'Security', href: '#' },
-      { label: 'API Docs', href: '#' },
+      { label: 'Features', href: '/features' },
+      { label: 'Security', href: '/security' },
+      { label: 'API Docs', href: '/api-docs' },
     ],
     resources: [
-      { label: 'Help Center', href: '#' },
-      { label: 'Contact', href: 'mailto:hello@merchin.co' },
-      { label: 'Pricing', href: '#pricing' },
+      { label: 'Help Center', href: '/help' },
+      { label: 'Contact', href: '/contact' },
+      { label: 'Pricing', href: '/#pricing' },
     ],
     legal: [
-      { label: 'Privacy Policy', href: '#' },
-      { label: 'Terms of Service', href: '#' },
-      { label: 'Cookie Policy', href: '#' },
+      { label: 'Privacy Policy', href: '/privacy' },
+      { label: 'Terms of Service', href: '/terms' },
+      { label: 'Cookie Policy', href: '/cookies' },
     ],
   };
 
@@ -136,22 +136,16 @@ export default function Footer() {
               </a>
             </div>
 
-            {/* Social Icons */}
-            <div className="flex items-center gap-4">
-              <a
-                href="#"
-                aria-label="LinkedIn"
-                className="p-2 text-gray-600 hover:text-emerald-600 transition-colors"
+            <div className="flex items-center gap-6 text-sm">
+              <Link href="/auth/login" className="text-gray-600 hover:text-gray-900 transition-colors">
+                Log In
+              </Link>
+              <Link
+                href="/auth/signup"
+                className="text-emerald-600 font-medium hover:text-emerald-700 transition-colors"
               >
-                <Link2 size={20} />
-              </a>
-              <a
-                href="#"
-                aria-label="Twitter"
-                className="p-2 text-gray-600 hover:text-emerald-600 transition-colors"
-              >
-                <Globe size={20} />
-              </a>
+                Get Started
+              </Link>
             </div>
           </div>
 

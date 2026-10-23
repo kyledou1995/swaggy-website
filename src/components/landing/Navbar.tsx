@@ -18,10 +18,10 @@ export default function Navbar() {
   }, []);
 
   const navLinks = [
-    { label: 'How It Works', href: '#how-it-works' },
-    { label: 'Services', href: '#services' },
-    { label: 'Platform', href: '#platform' },
-    { label: 'Pricing', href: '#pricing' },
+    { label: 'How It Works', href: '/#how-it-works' },
+    { label: 'Services', href: '/#services' },
+    { label: 'Platform', href: '/#platform' },
+    { label: 'Pricing', href: '/#pricing' },
   ];
 
   return (
