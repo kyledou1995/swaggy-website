@@ -36,9 +36,9 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-8 mb-12">
           {/* Branding */}
           <div className="col-span-1">
-            <Link href="/" className="flex items-center gap-2 mb-6">
-              <span className="text-lg font-bold text-gray-900">merchin</span>
-              <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+            <Link href="/" className="flex items-center gap-1.5 mb-6">
+              <span className="text-2xl font-extrabold tracking-tight text-gray-900">merchin</span>
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1.5"></div>
             </Link>
             <p className="text-sm text-gray-600 leading-relaxed">
               Supply chain sourcing for ecommerce brands that don't want to manage it themselves.
