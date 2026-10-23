@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Send, FileText, Paperclip, Truck, MapPin, Star, Plane, Ship, DollarSign, CheckCircle, CreditCard, XCircle, AlertTriangle, Camera, Package } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { StatusTimeline, TimelineStep } from '@/components/ui/StatusTimeline';
+import { Celebration } from '@/components/ui/Celebration';
+import { Skeleton } from '@/components/ui/Animated';
+import { ShipmentTracker } from '@/components/portal/ShipmentTracker';
 import { createClient } from '@/lib/supabase';
 import { ORDER_STATUS_LABELS, ORDER_TIMELINE } from '@/lib/constants';
 import { notifyAdmins } from '@/lib/notifications';
@@ -29,6 +32,7 @@ export default function OrderDetailPage() {
   const searchParams = useSearchParams();
   const orderId = params.id as string;
   const paymentStatus = searchParams.get('payment');
+  const paymentType = searchParams.get('type') || 'deposit';
 
   const [user, setUser] = useState<User | null>(null);
   const [order, setOrder] = useState<Order | null>(null);
@@ -55,6 +59,21 @@ export default function OrderDetailPage() {
   const [voidReason, setVoidReason] = useState('');
   const [voidLoading, setVoidLoading] = useState(false);
   const [finalPaymentLoading, setFinalPaymentLoading] = useState(false);
+  const [celebration, setCelebration] = useState<{ title: string; message: string } | null>(null);
+  const closeCelebration = useCallback(() => setCelebration(null), []);
+  const messagesBoxRef = useRef<HTMLDivElement>(null);
+
+  // Show a one-time celebration for a milestone (remembered per browser).
+  const celebrateOnce = useCallback((key: string, title: string, message: string) => {
+    try {
+      const k = `merchin:celebrated:${key}`;
+      if (window.localStorage.getItem(k)) return;
+      window.localStorage.setItem(k, '1');
+    } catch {
+      // storage unavailable — still celebrate
+    }
+    setCelebration({ title, message });
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -145,16 +164,55 @@ export default function OrderDetailPage() {
     fetchData();
   }, [orderId, router]);
 
+  // Milestone celebrations
+  useEffect(() => {
+    if (!order) return;
+    if (paymentStatus === 'success') {
+      const copy: Record<string, [string, string]> = {
+        deposit: ['Deposit received', 'Your order is officially in motion. We will keep you posted at every step.'],
+        sample: ['Sample payment received', 'We are preparing your samples and will share them for approval soon.'],
+        final: ['Payment complete', 'Your balance is paid. We will get your order shipped right away.'],
+      };
+      const [title, message] = copy[paymentType] || copy.deposit;
+      celebrateOnce(`${order.id}:paid:${paymentType}`, title, message);
+    } else if (order.status === 'delivered') {
+      celebrateOnce(`${order.id}:delivered`, 'Your order has arrived', 'Thanks for building with Merchin. We hope you love it.');
+    }
+  }, [order?.id, order?.status, paymentStatus, paymentType, celebrateOnce]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep the message thread scrolled to the newest message
+  useEffect(() => {
+    const box = messagesBoxRef.current;
+    if (box) box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
+  }, [allMessages.length]);
+
   if (isLoading) {
     return (
-      <PortalLayout pageTitle="Loading...">
-        <Card>
-          <CardBody className="text-center py-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Loading order...
-            </h2>
-          </CardBody>
-        </Card>
+      <PortalLayout pageTitle="Order">
+        <div className="space-y-6" aria-busy="true" aria-label="Loading order">
+          <Card>
+            <CardBody>
+              <Skeleton className="h-8 w-48 mb-3" />
+              <div className="flex gap-2">
+                <Skeleton className="h-5 w-24 rounded-full" />
+                <Skeleton className="h-5 w-32" />
+              </div>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody className="space-y-5">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3.5 w-32" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+              ))}
+            </CardBody>
+          </Card>
+        </div>
       </PortalLayout>
     );
   }
@@ -279,6 +337,7 @@ export default function OrderDetailPage() {
         };
         setAllMessages([...allMessages, response]);
         setOrder({ ...order!, status: 'sample_approved' });
+        celebrateOnce(`${orderId}:sample_approved`, 'Sample approved', 'Great choice. Full production starts now.');
 
         // Notify admins
         await notifyAdmins({
@@ -677,7 +736,13 @@ export default function OrderDetailPage() {
             <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
             <div>
               <p className="font-semibold text-green-800">Payment Successful!</p>
-              <p className="text-sm text-green-700">Your deposit has been received. We&apos;ll begin processing your order right away.</p>
+              <p className="text-sm text-green-700">
+                {paymentType === 'sample'
+                  ? 'Your sample payment has been received. We\'ll prepare your samples right away.'
+                  : paymentType === 'final'
+                    ? 'Your final payment has been received. We\'ll get your order shipped.'
+                    : 'Your deposit has been received. We\'ll begin processing your order right away.'}
+              </p>
             </div>
           </div>
         )}
@@ -686,7 +751,7 @@ export default function OrderDetailPage() {
             <DollarSign className="w-6 h-6 text-yellow-600 flex-shrink-0" />
             <div>
               <p className="font-semibold text-yellow-800">Payment Cancelled</p>
-              <p className="text-sm text-yellow-700">You can complete the deposit payment at any time using the button below.</p>
+              <p className="text-sm text-yellow-700">You can complete the payment at any time using the button below.</p>
             </div>
           </div>
         )}
@@ -740,7 +805,7 @@ export default function OrderDetailPage() {
           <CardBody>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 break-words">
                   Order #{order.order_number || order.id.slice(0, 8)}
                 </h1>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -771,6 +836,26 @@ export default function OrderDetailPage() {
             />
           </CardBody>
         </Card>
+
+        {/* Live shipment tracker */}
+        {order.status === 'in_transit' && (
+          <Card className="animate-fade-up">
+            <CardBody>
+              <ShipmentTracker
+                method={order.selected_shipping}
+                departedAt={updates.find((u) => u.status === 'in_transit')?.created_at}
+                transitDays={
+                  order.selected_shipping === 'air'
+                    ? order.quote_air_shipping_days
+                    : order.selected_shipping === 'ocean'
+                      ? order.quote_ocean_shipping_days
+                      : null
+                }
+                destination={shipments.length === 1 && shipments[0].delivery_address ? shipments[0].delivery_address.label : 'Your address'}
+              />
+            </CardBody>
+          </Card>
+        )}
 
         {/* Order Details */}
         <Card>
@@ -1658,7 +1743,7 @@ export default function OrderDetailPage() {
             </h2>
           </CardHeader>
           <CardBody>
-            <div className="space-y-4 max-h-96 overflow-y-auto mb-6 pb-4">
+            <div ref={messagesBoxRef} className="space-y-4 max-h-96 overflow-y-auto mb-6 pb-4">
               {allMessages.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">
                   No messages yet. Start a conversation by sending a message
@@ -1668,7 +1753,7 @@ export default function OrderDetailPage() {
                 allMessages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex gap-3 ${
+                    className={`flex gap-3 animate-fade-up ${
                       msg.sender_role === 'admin'
                         ? 'flex-row'
                         : 'flex-row-reverse'
@@ -1686,7 +1771,7 @@ export default function OrderDetailPage() {
                       </span>
                     </div>
                     <div
-                      className={`flex-1 ${
+                      className={`flex flex-col max-w-[80%] ${
                         msg.sender_role === 'admin'
                           ? 'items-start'
                           : 'items-end'
@@ -1699,7 +1784,7 @@ export default function OrderDetailPage() {
                             : 'bg-green-100 text-gray-900'
                         }`}
                       >
-                        <p className="text-sm">{msg.message}</p>
+                        <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
                       </div>
                       <p className="text-xs text-gray-500 mt-1 px-3">
                         {new Date(msg.created_at).toLocaleString()}
@@ -1739,6 +1824,12 @@ export default function OrderDetailPage() {
           </CardFooter>
         </Card>
       </div>
+      <Celebration
+        open={!!celebration}
+        title={celebration?.title || ''}
+        message={celebration?.message}
+        onClose={closeCelebration}
+      />
     </PortalLayout>
   );
 }

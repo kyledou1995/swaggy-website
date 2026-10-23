@@ -127,7 +127,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
   const isActive = (href: string) => pathname === href;
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen h-[100dvh] bg-gray-50">
       {/* Sidebar Overlay for Mobile */}
       {sidebarOpen && (
         <div
@@ -138,7 +138,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:relative w-64 h-screen bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 z-40 ${
+        className={`fixed lg:relative w-64 h-screen h-[100dvh] bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 z-40 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -207,10 +207,11 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             {/* Mobile Menu Toggle */}
             <button
+              aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
               className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
               onClick={() => setSidebarOpen(!sidebarOpen)}
             >
@@ -222,18 +223,18 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
             </button>
 
             {/* Page Title */}
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
               {pageTitle}
             </h2>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Notification Bell */}
           <NotificationBell userId={userId} />
 
           {/* User Avatar with Dropdown */}
           <div className="relative group">
-            <div className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+            <div tabIndex={0} role="button" aria-label="Account menu" className="flex items-center gap-2 cursor-pointer px-1.5 sm:px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors outline-none">
               <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center">
                 <User className="w-4 h-4 text-green-600" />
               </div>
@@ -248,7 +249,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
             </div>
 
             {/* Dropdown Menu — pt-2 acts as invisible hover bridge */}
-            <div className="absolute right-0 top-full w-56 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+            <div className="absolute right-0 top-full w-56 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 py-2">
               <div className="px-4 py-3 border-b border-gray-100">
                 <p className="text-sm font-semibold text-gray-900">{userName}</p>
@@ -285,7 +286,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto">
-          <div className="px-6 py-6">{children}</div>
+          <div className="px-4 sm:px-6 py-5 sm:py-6">{children}</div>
         </main>
       </div>
     </div>

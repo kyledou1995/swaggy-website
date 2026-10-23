@@ -22,6 +22,7 @@ import {
   Ruler,
 } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
+import { SuccessCheck } from '@/components/ui/Celebration';
 import { Card, CardBody, CardHeader, CardFooter } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -82,7 +83,13 @@ const supabase = createClient();
 
 export default function NewOrderPage() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStepRaw] = useState(1);
+  const [stepDirection, setStepDirection] = useState<1 | -1>(1);
+  const setCurrentStep = (next: number) => {
+    setStepDirection(next > currentStep ? 1 : -1);
+    setCurrentStepRaw(next);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const [showSuccess, setShowSuccess] = useState(false);
   const [generatedOrderId, setGeneratedOrderId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
@@ -551,7 +558,7 @@ export default function NewOrderPage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const orderNumber = `ORD-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
+      const orderNumber = `MRC-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
 
       // Upload inspiration images, logo files, and dieline files
       const imageUrls = await uploadInspirationImages();
@@ -651,18 +658,16 @@ export default function NewOrderPage() {
         <div className="max-w-2xl mx-auto">
           <Card>
             <CardBody className="text-center py-12">
-              <div className="flex justify-center mb-4">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                  <CheckCircle className="w-10 h-10 text-green-600" />
-                </div>
+              <div className="mb-5">
+                <SuccessCheck />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Order Submitted Successfully!
+              <h2 className="text-2xl font-bold text-gray-900 mb-2 animate-fade-up" style={{ animationDelay: '0.7s' }}>
+                Order submitted!
               </h2>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 mb-6 animate-fade-up" style={{ animationDelay: '0.8s' }}>
                 Your order has been submitted and is now under review.
               </p>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 animate-fade-up" style={{ animationDelay: '0.9s' }}>
                 <p className="text-sm text-gray-600 mb-1">Order Number</p>
                 <p className="text-xl font-bold text-green-600">{generatedOrderId}</p>
               </div>
@@ -698,33 +703,27 @@ export default function NewOrderPage() {
       <div className="max-w-2xl mx-auto">
         {/* Step Indicator */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            {STEPS.map((step, index) => (
-              <div key={step.id} className="flex items-center flex-1">
+          <div className="flex items-center justify-between text-sm mb-3">
+            <span className="font-semibold text-gray-900">
+              Step {currentStep} of {STEPS.length}
+              <span className="text-gray-500 font-normal"> · {STEPS[currentStep - 1]?.label}</span>
+            </span>
+          </div>
+          <div className="flex gap-1.5" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={currentStep}>
+            {STEPS.map((step) => (
+              <div key={step.id} className="flex-1 h-1.5 rounded-full bg-gray-200 overflow-hidden">
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-colors flex-shrink-0 ${
-                    currentStep >= step.id
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-200 text-gray-600'
-                  }`}
-                >
-                  {step.id}
-                </div>
-                {index < STEPS.length - 1 && (
-                  <div
-                    className={`h-1 flex-1 mx-2 transition-colors ${
-                      currentStep > step.id ? 'bg-green-600' : 'bg-gray-200'
-                    }`}
-                  />
-                )}
+                  className="h-full bg-green-600 rounded-full origin-left transition-transform duration-500 ease-[cubic-bezier(.4,0,.2,1)]"
+                  style={{ transform: currentStep >= step.id ? 'scaleX(1)' : 'scaleX(0)' }}
+                />
               </div>
             ))}
           </div>
-          <div className="flex justify-between text-sm">
+          <div className="hidden sm:flex justify-between text-xs mt-2.5">
             {STEPS.map((step) => (
               <span
                 key={step.id}
-                className={currentStep >= step.id ? 'font-semibold text-gray-900' : 'text-gray-500'}
+                className={`flex-1 transition-colors ${currentStep >= step.id ? 'font-semibold text-gray-900' : 'text-gray-500'}`}
               >
                 {step.label}
               </span>
@@ -744,7 +743,11 @@ export default function NewOrderPage() {
             </h2>
           </CardHeader>
 
-          <CardBody className="space-y-6">
+          <CardBody className="overflow-x-clip">
+          <div
+            key={currentStep}
+            className={`space-y-6 ${stepDirection > 0 ? 'animate-slide-in-right' : 'animate-slide-in-left'}`}
+          >
             {/* Step 1: Basic Info */}
             {currentStep === 1 && (
               <>
@@ -1733,11 +1736,12 @@ export default function NewOrderPage() {
                 </Badge>
               </div>
             )}
+          </div>
           </CardBody>
 
           {/* Navigation Buttons */}
           <CardFooter>
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-3">
               <Button variant="secondary" onClick={handleBack} disabled={currentStep === 1}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back

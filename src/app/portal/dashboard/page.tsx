@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
 import { createClient } from '@/lib/supabase';
 import { Order } from '@/types';
+import { CountUp, Skeleton, stagger } from '@/components/ui/Animated';
 
 const getStatusVariant = (status: string) => {
   if (['delivered', 'sample_approved'].includes(status)) return 'success';
@@ -23,24 +24,36 @@ const StatCard = ({
   title,
   value,
   icon,
+  loading,
+  index,
 }: {
   title: string;
   value: number;
   icon: React.ReactNode;
+  loading: boolean;
+  index: number;
 }) => (
-  <Card>
-    <CardBody>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600 mb-1">{title}</p>
-          <p className="text-3xl font-bold text-gray-900">{value}</p>
+  <div className="animate-fade-up" style={stagger(index)}>
+    <Card>
+      <CardBody>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs sm:text-sm text-gray-600 mb-1">{title}</p>
+            {loading ? (
+              <Skeleton className="h-8 w-12 mt-1" />
+            ) : (
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                <CountUp value={value} />
+              </p>
+            )}
+          </div>
+          <div className="hidden sm:flex w-12 h-12 bg-green-100 rounded-lg items-center justify-center shrink-0">
+            {icon}
+          </div>
         </div>
-        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-          {icon}
-        </div>
-      </div>
-    </CardBody>
-  </Card>
+      </CardBody>
+    </Card>
+  </div>
 );
 
 export default function DashboardPage() {
@@ -116,7 +129,7 @@ export default function DashboardPage() {
     >
       {/* Welcome Section */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
           Welcome back{userName ? `, ${userName.split(' ')[0]}` : ''}
         </h1>
         <p className="text-gray-600">
@@ -125,11 +138,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard title="Total Orders" value={totalOrders} icon={<Package className="w-6 h-6 text-green-600" />} />
-        <StatCard title="In Progress" value={inProgressCount} icon={<TrendingUp className="w-6 h-6 text-green-600" />} />
-        <StatCard title="Awaiting Action" value={awaitingActionCount} icon={<AlertCircle className="w-6 h-6 text-green-600" />} />
-        <StatCard title="Delivered" value={deliveredCount} icon={<CheckCircle className="w-6 h-6 text-green-600" />} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-8">
+        <StatCard index={0} loading={loading} title="Total Orders" value={totalOrders} icon={<Package className="w-6 h-6 text-green-600" />} />
+        <StatCard index={1} loading={loading} title="In Progress" value={inProgressCount} icon={<TrendingUp className="w-6 h-6 text-green-600" />} />
+        <StatCard index={2} loading={loading} title="Awaiting Action" value={awaitingActionCount} icon={<AlertCircle className="w-6 h-6 text-green-600" />} />
+        <StatCard index={3} loading={loading} title="Delivered" value={deliveredCount} icon={<CheckCircle className="w-6 h-6 text-green-600" />} />
       </div>
 
       {/* Recent Orders */}
@@ -146,9 +159,17 @@ export default function DashboardPage() {
 
         <Card>
           {loading ? (
-            <CardBody>
-              <div className="text-center py-8 text-gray-500">Loading orders...</div>
-            </CardBody>
+            <div className="divide-y divide-gray-100">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex items-center justify-between px-6 py-4 gap-4">
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3.5 w-24" />
+                    <Skeleton className="h-3 w-40" />
+                  </div>
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </div>
+              ))}
+            </div>
           ) : recentOrders.length === 0 ? (
             <CardBody>
               <div className="text-center py-12">
@@ -161,7 +182,29 @@ export default function DashboardPage() {
               </div>
             </CardBody>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Mobile: card list */}
+            <div className="sm:hidden divide-y divide-gray-100">
+              {recentOrders.map((order: Order, i) => (
+                <Link
+                  key={order.id}
+                  href={`/portal/orders/${order.id}`}
+                  className="flex items-center justify-between gap-3 px-4 py-3.5 animate-fade-up active:bg-gray-50"
+                  style={stagger(i, 70, 200)}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">#{order.order_number || order.id.substring(0, 8)}</p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {order.product_type} · {order.quantity.toLocaleString()} units
+                    </p>
+                  </div>
+                  <Badge variant={getStatusVariant(order.status) as any} size="sm">
+                    {ORDER_STATUS_LABELS[order.status] || order.status}
+                  </Badge>
+                </Link>
+              ))}
+            </div>
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200">
@@ -174,8 +217,8 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentOrders.map((order: Order) => (
-                    <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                  {recentOrders.map((order: Order, i) => (
+                    <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors animate-fade-up" style={stagger(i, 70, 200)}>
                       <td className="px-6 py-4 text-sm font-semibold text-gray-900">
                         {order.order_number || order.id.substring(0, 8)}
                       </td>
@@ -199,12 +242,13 @@ export default function DashboardPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </Card>
       </div>
 
       {/* Quick Actions */}
-      <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
         <Link href="/portal/orders/new">
           <Button variant="primary">Create New Order</Button>
         </Link>

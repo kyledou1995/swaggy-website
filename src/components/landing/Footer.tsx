@@ -34,9 +34,9 @@ export default function Footer() {
     <footer className="bg-gray-50 border-t border-gray-200">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Main Content */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-8 mb-12">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
           {/* Branding */}
-          <div className="col-span-1">
+          <div className="col-span-2 md:col-span-1">
             <div className="mb-6">
               <Logo />
             </div>

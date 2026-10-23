@@ -74,7 +74,7 @@ export default function Pricing() {
               key={tier.name}
               className={`rounded-xl border transition-all duration-300 ${
                 tier.highlighted
-                  ? 'border-emerald-500 bg-white shadow-lg scale-105 md:scale-110'
+                  ? 'border-emerald-500 bg-white shadow-lg md:scale-105'
                   : 'border-gray-200 bg-white hover:border-emerald-200 hover:shadow-sm'
               }`}
             >

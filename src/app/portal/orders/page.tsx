@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { ORDER_STATUS_LABELS, PRODUCT_TYPES } from '@/lib/constants';
 import { createClient } from '@/lib/supabase';
+import { Skeleton, stagger } from '@/components/ui/Animated';
 import { Order } from '@/types';
 
 const getStatusVariant = (status: string) => {
@@ -106,7 +107,7 @@ export default function OrdersPage() {
       <div className="mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">My Orders</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Orders</h1>
             <p className="text-gray-600 mt-1">Track and manage all your orders</p>
           </div>
           <Link href="/portal/orders/new">
@@ -132,19 +133,36 @@ export default function OrdersPage() {
       </Card>
 
       {loading ? (
-        <Card>
-          <CardBody>
-            <div className="text-center py-12 text-gray-500">Loading orders...</div>
-          </CardBody>
-        </Card>
+        <div className="grid grid-cols-1 gap-4">
+          {[0, 1, 2].map((i) => (
+            <Card key={i}>
+              <CardBody>
+                <div className="flex items-center gap-3 mb-3">
+                  <Skeleton className="h-5 w-28" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-32 mb-4" />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[0, 1, 2, 3].map((k) => (
+                    <div key={k} className="space-y-1.5">
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                  ))}
+                </div>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
       ) : filteredOrders.length > 0 ? (
         <div className="grid grid-cols-1 gap-4">
-          {filteredOrders.map((order: Order) => (
-            <Card key={order.id} hover>
+          {filteredOrders.map((order: Order, i) => (
+            <div key={order.id} className="animate-fade-up" style={stagger(Math.min(i, 8))}>
+            <Card hover>
               <CardBody>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="text-lg font-bold text-gray-900">
                         {order.order_number || `Order ${order.id.substring(0, 8)}`}
                       </h3>
@@ -172,12 +190,13 @@ export default function OrdersPage() {
                       </div>
                     </div>
                   </div>
-                  <Link href={`/portal/orders/${order.id}`}>
-                    <Button variant="primary" size="md">View Details</Button>
+                  <Link href={`/portal/orders/${order.id}`} className="w-full md:w-auto">
+                    <Button variant="primary" size="md" className="w-full md:w-auto">View Details</Button>
                   </Link>
                 </div>
               </CardBody>
             </Card>
+            </div>
           ))}
         </div>
       ) : (

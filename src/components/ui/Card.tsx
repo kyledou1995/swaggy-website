@@ -36,7 +36,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
 }) => {
   return (
     <div
-      className={`px-6 py-4 border-b border-gray-200 ${className}`.trim()}
+      className={`px-4 sm:px-6 py-4 border-b border-gray-200 ${className}`.trim()}
       {...props}
     >
       {children}
@@ -56,7 +56,7 @@ export const CardBody: React.FC<CardBodyProps> = ({
   ...props
 }) => {
   return (
-    <div className={`px-6 py-4 ${className}`.trim()} {...props}>
+    <div className={`px-4 sm:px-6 py-4 ${className}`.trim()} {...props}>
       {children}
     </div>
   );
@@ -75,7 +75,7 @@ export const CardFooter: React.FC<CardFooterProps> = ({
 }) => {
   return (
     <div
-      className={`px-6 py-4 border-t border-gray-200 bg-gray-50 ${className}`.trim()}
+      className={`px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50 ${className}`.trim()}
       {...props}
     >
       {children}

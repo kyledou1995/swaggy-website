@@ -17,6 +17,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
   const [loading, setLoading] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const isMarkingRef = useRef(false);
+  const prevUnreadRef = useRef<number | null>(null);
+  const [ringKey, setRingKey] = useState(0);
 
   // Load notifications
   const loadNotifications = async () => {
@@ -32,8 +34,12 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
       .limit(20);
 
     if (data && !isMarkingRef.current) {
+      const unread = data.filter((n: any) => !n.is_read).length;
+      // Ring the bell when new unread notifications arrive (not on first load)
+      if (prevUnreadRef.current !== null && unread > prevUnreadRef.current) setRingKey((k) => k + 1);
+      prevUnreadRef.current = unread;
       setNotifications(data as AppNotification[]);
-      setUnreadCount(data.filter((n: any) => !n.is_read).length);
+      setUnreadCount(unread);
     }
   };
 
@@ -67,6 +73,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
       prev.map((n) => (n.id === notifId ? { ...n, is_read: true } : n))
     );
     setUnreadCount((prev) => Math.max(0, prev - 1));
+    prevUnreadRef.current = Math.max(0, (prevUnreadRef.current ?? 1) - 1);
 
     await supabase
       .from('notifications')
@@ -83,6 +90,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
 
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     setUnreadCount(0);
+    prevUnreadRef.current = 0;
 
     await supabase
       .from('notifications')
@@ -142,10 +150,16 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
           if (!isOpen) loadNotifications();
         }}
         className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
       >
-        <Bell className="w-5 h-5 text-gray-600" />
+        <span key={ringKey} className={`block ${ringKey > 0 ? 'animate-bell-shake' : ''}`}>
+          <Bell className="w-5 h-5 text-gray-600" />
+        </span>
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+          <span
+            key={`badge-${unreadCount}`}
+            className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pop-in"
+          >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -153,7 +167,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
 
       {/* Notification Panel */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden">
+        <div className="fixed left-3 right-3 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden origin-top-right animate-[merchin-fade-up_.2s_ease-out_both]">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <h3 className="font-semibold text-gray-900 text-sm">Notifications</h3>
@@ -187,10 +201,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
                 </p>
               </div>
             ) : (
-              notifications.map((notif) => (
+              notifications.map((notif, i) => (
                 <div
                   key={notif.id}
-                  className={`flex items-start gap-3 px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer ${
+                  style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+                  className={`flex items-start gap-3 px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer animate-slide-in-right ${
                     !notif.is_read ? 'bg-green-50/40' : ''
                   }`}
                   onClick={() => {
