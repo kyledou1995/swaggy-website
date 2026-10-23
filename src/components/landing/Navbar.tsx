@@ -36,7 +36,7 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-lg font-bold text-gray-900">swaggy</span>
+            <span className="text-lg font-bold text-gray-900">merchin</span>
             <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
           </Link>
 

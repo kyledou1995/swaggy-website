@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
 <body>
   <div class="header">
     <div>
-      <div class="logo">swaggy</div>
+      <div class="logo">merchin</div>
       <div class="logo-sub">Sourcing Made Simple</div>
     </div>
     <div class="invoice-meta">
@@ -131,10 +131,10 @@ export async function GET(request: NextRequest) {
   <div class="parties">
     <div class="party">
       <div class="party-label">From</div>
-      <div class="party-name">Swaggy Inc.</div>
+      <div class="party-name">Merchin Inc.</div>
       <div class="party-detail">
         Sourcing &amp; Supply Chain<br>
-        support@swaggy.com
+        support@merchin.com
       </div>
     </div>
     <div class="party">
@@ -239,7 +239,7 @@ export async function GET(request: NextRequest) {
   <div class="footer">
     <p>
       Thank you for your business!<br>
-      Questions? Contact us at support@swaggy.com
+      Questions? Contact us at support@merchin.com
     </p>
   </div>
 </body>

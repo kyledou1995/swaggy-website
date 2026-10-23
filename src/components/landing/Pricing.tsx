@@ -139,7 +139,7 @@ export default function Pricing() {
         <div className="mt-12 text-center">
           <p className="text-gray-600">
             All tiers include production consultation. Let's talk about your specific needs.{' '}
-            <a href="mailto:hello@swaggy.co" className="text-emerald-600 font-medium hover:text-emerald-700">
+            <a href="mailto:hello@merchin.co" className="text-emerald-600 font-medium hover:text-emerald-700">
               Contact us
             </a>
           </p>

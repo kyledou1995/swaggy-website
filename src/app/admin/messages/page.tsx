@@ -135,7 +135,7 @@ export default function AdminMessagesPage() {
         order_id: selectedThread.order.id,
         sender_id: adminUser.id,
         sender_role: 'admin',
-        sender_name: 'Swaggy Team',
+        sender_name: 'Merchin Team',
         message: newMessage.trim(),
         attachments: [],
       }]);
@@ -147,7 +147,7 @@ export default function AdminMessagesPage() {
         order_id: selectedThread.order.id,
         sender_id: adminUser.id,
         sender_role: 'admin',
-        sender_name: 'Swaggy Team',
+        sender_name: 'Merchin Team',
         message: newMessage.trim(),
         attachments: [],
         created_at: new Date().toISOString(),

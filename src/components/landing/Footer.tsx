@@ -19,7 +19,7 @@ export default function Footer() {
     ],
     resources: [
       { label: 'Help Center', href: '#' },
-      { label: 'Contact', href: 'mailto:hello@swaggy.co' },
+      { label: 'Contact', href: 'mailto:hello@merchin.co' },
       { label: 'Pricing', href: '#pricing' },
     ],
     legal: [
@@ -37,7 +37,7 @@ export default function Footer() {
           {/* Branding */}
           <div className="col-span-1">
             <Link href="/" className="flex items-center gap-2 mb-6">
-              <span className="text-lg font-bold text-gray-900">swaggy</span>
+              <span className="text-lg font-bold text-gray-900">merchin</span>
               <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
             </Link>
             <p className="text-sm text-gray-600 leading-relaxed">
@@ -129,10 +129,10 @@ export default function Footer() {
             <div className="flex items-center gap-2">
               <Mail size={18} className="text-gray-600" />
               <a
-                href="mailto:hello@swaggy.co"
+                href="mailto:hello@merchin.co"
                 className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
               >
-                hello@swaggy.co
+                hello@merchin.co
               </a>
             </div>
 
@@ -158,7 +158,7 @@ export default function Footer() {
           {/* Copyright */}
           <div className="text-center sm:text-left">
             <p className="text-xs text-gray-600">
-              Copyright {currentYear} Swaggy. All rights reserved.
+              Copyright {currentYear} Merchin. All rights reserved.
             </p>
           </div>
         </div>

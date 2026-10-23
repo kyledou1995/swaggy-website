@@ -1,6 +1,6 @@
 @AGENTS.md
 
-# Swaggy — B2B Supply Chain Sourcing Platform
+# Merchin — B2B Supply Chain Sourcing Platform
 
 ## Stack
 - **Framework:** Next.js 16 (App Router, TypeScript, `'use client'` components)

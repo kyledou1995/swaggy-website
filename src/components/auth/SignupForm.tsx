@@ -97,7 +97,7 @@ export const SignupForm: React.FC = () => {
       <div className="space-y-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900">Create Account</h1>
-          <p className="mt-2 text-gray-600">Join Swaggy to streamline sourcing</p>
+          <p className="mt-2 text-gray-600">Join Merchin to streamline sourcing</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

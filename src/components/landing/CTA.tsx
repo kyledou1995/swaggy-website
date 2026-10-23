@@ -26,7 +26,7 @@ export default function CTA() {
 
         {/* Subtitle */}
         <p className="text-lg text-gray-600 mb-12">
-          Join 50+ ecommerce brands that trust Swaggy for sourcing and fulfillment.
+          Join 50+ ecommerce brands that trust Merchin for sourcing and fulfillment.
         </p>
 
         {/* Email Form */}

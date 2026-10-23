@@ -1,5 +1,5 @@
 -- ============================================
--- SWAGGY - Supabase Database Schema
+-- MERCHIN - Supabase Database Schema
 -- Run this in your Supabase SQL Editor
 -- ============================================
 
@@ -72,7 +72,7 @@ begin
   select coalesce(max(cast(substring(order_number from 5) as integer)), 0) + 1
   into next_num
   from public.orders;
-  new.order_number := 'SWG-' || lpad(next_num::text, 5, '0');
+  new.order_number := 'MRC-' || lpad(next_num::text, 5, '0');
   return new;
 end;
 $$ language plpgsql;

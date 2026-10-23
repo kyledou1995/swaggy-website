@@ -343,7 +343,7 @@ export default function PortalMessagesPage() {
                         <p className="text-xs text-gray-500 mt-0.5">{thread.order.product_type}</p>
                         {thread.lastMessage ? (
                           <p className={`text-xs mt-1 truncate ${hasUnread ? 'text-gray-700 font-semibold' : 'text-gray-400'}`}>
-                            {thread.lastMessage.sender_role === 'client' ? 'You: ' : 'Swaggy: '}
+                            {thread.lastMessage.sender_role === 'client' ? 'You: ' : 'Merchin: '}
                             {thread.lastMessage.message}
                           </p>
                         ) : (
@@ -428,7 +428,7 @@ export default function PortalMessagesPage() {
                             <p className={`text-xs font-medium mb-1 ${
                               isClient ? 'text-green-100' : 'text-green-600'
                             }`}>
-                              {isClient ? (msg.sender_id === user?.id ? 'You' : (msg.sender_name || 'Teammate')) : 'Swaggy Team'}
+                              {isClient ? (msg.sender_id === user?.id ? 'You' : (msg.sender_name || 'Teammate')) : 'Merchin Team'}
                             </p>
                             <p className="text-sm leading-relaxed">{msg.message}</p>
                             <p className={`text-[10px] mt-2 ${

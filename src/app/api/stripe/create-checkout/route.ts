@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.headers.get('origin') || 'https://swaggy-website.vercel.app';
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.headers.get('origin') || 'https://merchin.vercel.app';
     const type = paymentType || 'deposit';
 
     const isSample = type === 'sample';
@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
       ? `Sample Payment — Order #${orderNumber}`
       : `30% Deposit — Order #${orderNumber}`;
     const productDescription = isSample
-      ? `Sample payment for Swaggy order #${orderNumber}`
-      : `Deposit payment for Swaggy order #${orderNumber}`;
+      ? `Sample payment for Merchin order #${orderNumber}`
+      : `Deposit payment for Merchin order #${orderNumber}`;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'us_bank_account'],

@@ -1,4 +1,4 @@
-# Swaggy — Deployment Guide
+# Merchin — Deployment Guide
 
 ## Quick Start (Local Development)
 
@@ -23,7 +23,7 @@ Visit http://localhost:3000
 ### Step 1: Set Up Supabase
 
 1. Go to [supabase.com](https://supabase.com) and create a free account
-2. Create a new project (name it "swaggy")
+2. Create a new project (name it "merchin")
 3. Once created, go to **SQL Editor** and run the contents of `supabase-schema.sql`
 4. Go to **Settings → API** and copy:
    - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
@@ -62,7 +62,7 @@ vercel
 ## Project Structure
 
 ```
-swaggy/
+merchin/
 ├── src/
 │   ├── app/                    # Next.js App Router pages
 │   │   ├── page.tsx            # Landing page (marketing)

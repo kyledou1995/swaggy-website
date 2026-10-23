@@ -18,9 +18,9 @@ export const DEMO_USER: User = {
 
 export const DEMO_ADMIN: User = {
   id: 'user_admin_001',
-  email: 'admin@swaggy.com',
+  email: 'admin@merchin.com',
   full_name: 'Sarah Chen',
-  company_name: 'Swaggy',
+  company_name: 'Merchin',
   role: 'admin',
   client_role: 'owner',
   organization_id: 'user_admin_001',

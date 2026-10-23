@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Swaggy — Sourcing Made Simple for Ecommerce Brands",
+  title: "Merchin — Sourcing Made Simple for Ecommerce Brands",
   description:
     "We handle your product sourcing, design, quality control, and shipping so you can focus on growing your brand.",
 };

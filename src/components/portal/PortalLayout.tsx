@@ -133,7 +133,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         {/* Logo */}
         <div className="px-6 py-6 border-b border-gray-200">
           <h1 className="text-2xl font-bold">
-            <span className="text-green-600">swaggy</span>
+            <span className="text-green-600">merchin</span>
           </h1>
         </div>
 
