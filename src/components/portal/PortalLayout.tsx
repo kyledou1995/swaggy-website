@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { NotificationBell } from '@/components/portal/NotificationBell';
 import { useCurrentProfile, clearCachedProfile } from '@/lib/useCurrentProfile';
+import { Logo } from '@/components/ui/Logo';
 
 interface PortalLayoutProps {
   children: React.ReactNode;
@@ -143,9 +144,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
       >
         {/* Logo */}
         <div className="px-6 py-6 border-b border-gray-200">
-          <h1 className="text-2xl font-bold">
-            <span className="text-green-600">merchin</span>
-          </h1>
+          <Logo href="/portal/dashboard" />
         </div>
 
         {/* Navigation */}

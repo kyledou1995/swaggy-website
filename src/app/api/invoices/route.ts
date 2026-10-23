@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
 <body>
   <div class="header">
     <div>
-      <div class="logo">merchin</div>
+      <div class="logo" style="color:#171717">merchin<span style="color:#10b981">.</span></div>
       <div class="logo-sub">Sourcing Made Simple</div>
     </div>
     <div class="invoice-meta">

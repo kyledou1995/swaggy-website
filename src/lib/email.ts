@@ -50,7 +50,7 @@ function layout(heading: string, bodyHtml: string, footerNote: string) {
 <body style="margin:0;padding:0;background-color:#f5f5f5;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f5f5f5"><tr><td align="center" style="padding:40px 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
-<tr><td style="padding:0 0 24px 4px;"><a href="https://www.merchin.co" style="text-decoration:none;font-family:${font};font-size:24px;font-weight:800;letter-spacing:-0.5px;color:#171717;">merchin<span style="color:#10b981;">&#9679;</span></a></td></tr>
+<tr><td style="padding:0 0 24px 4px;"><a href="https://www.merchin.co" style="text-decoration:none;font-family:${font};font-size:24px;font-weight:800;letter-spacing:-0.5px;color:#171717;">merchin<span style="color:#10b981;">.</span></a></td></tr>
 <tr><td bgcolor="#ffffff" style="border:1px solid #e5e5e5;border-top:4px solid #10b981;border-radius:12px;padding:36px 36px 28px 36px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td style="padding:0 0 16px 0;font-family:${font};font-size:24px;line-height:32px;font-weight:700;color:#171717;">${heading}</td></tr>

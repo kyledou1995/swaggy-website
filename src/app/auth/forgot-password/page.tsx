@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { createClient } from '@/lib/supabase';
+import { Logo } from '@/components/ui/Logo';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -39,11 +40,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <a href="/" className="inline-block">
-            <span className="text-3xl font-bold text-gray-900 tracking-tight">
-              merchin<span className="text-emerald-500">.</span>
-            </span>
-          </a>
+          <Logo size="lg" />
         </div>
 
         <div className="w-full max-w-md mx-auto space-y-6">

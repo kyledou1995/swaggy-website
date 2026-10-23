@@ -1,15 +1,12 @@
 import { LoginForm } from "@/components/auth/LoginForm";
+import { Logo } from '@/components/ui/Logo';
 
 export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <a href="/" className="inline-block">
-            <span className="text-3xl font-bold text-gray-900 tracking-tight">
-              merchin<span className="text-emerald-500">.</span>
-            </span>
-          </a>
+          <Logo size="lg" />
           <p className="mt-2 text-gray-500">Welcome back</p>
         </div>
         <LoginForm />

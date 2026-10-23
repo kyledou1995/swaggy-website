@@ -18,6 +18,7 @@ import { AdminNotificationBell } from '@/components/admin/AdminNotificationBell'
 import { createClient } from '@/lib/supabase';
 import { User } from '@/types';
 import { useCurrentProfile, clearCachedProfile } from '@/lib/useCurrentProfile';
+import { Logo } from '@/components/ui/Logo';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -118,7 +119,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         {/* Logo */}
         <div className="px-6 py-6 border-b border-gray-800">
           <div className="flex items-center gap-3">
-            <div className="text-2xl font-bold">merchin</div>
+            <Logo dark href="/admin/dashboard" />
             <Badge variant="neutral" className="bg-gray-700 text-gray-100">
               Admin
             </Badge>
