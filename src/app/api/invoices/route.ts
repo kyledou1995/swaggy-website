@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
       <div class="party-name">Merchin Inc.</div>
       <div class="party-detail">
         Sourcing &amp; Supply Chain<br>
-        support@merchin.com
+        support@merchin.co
       </div>
     </div>
     <div class="party">
@@ -239,7 +239,7 @@ export async function GET(request: NextRequest) {
   <div class="footer">
     <p>
       Thank you for your business!<br>
-      Questions? Contact us at support@merchin.com
+      Questions? Contact us at support@merchin.co
     </p>
   </div>
 </body>

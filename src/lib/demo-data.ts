@@ -18,7 +18,7 @@ export const DEMO_USER: User = {
 
 export const DEMO_ADMIN: User = {
   id: 'user_admin_001',
-  email: 'admin@merchin.com',
+  email: 'admin@merchin.co',
   full_name: 'Sarah Chen',
   company_name: 'Merchin',
   role: 'admin',
