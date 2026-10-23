@@ -24,8 +24,18 @@ export function useInView<T extends Element>(threshold = 0.35) {
   return { ref, inView };
 }
 
+/**
+ * Site owner's choice: play animations for everyone, even when the device has
+ * "Reduce Motion" turned on. Set to true to honor the OS setting again.
+ */
+export const RESPECT_REDUCED_MOTION = false;
+
 export function prefersReducedMotion() {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return (
+    RESPECT_REDUCED_MOTION &&
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 }
 
 const REDUCED_QUERY = '(prefers-reduced-motion: reduce)';
@@ -37,7 +47,7 @@ export function useReducedMotion() {
       mq.addEventListener('change', cb);
       return () => mq.removeEventListener('change', cb);
     },
-    () => window.matchMedia(REDUCED_QUERY).matches,
+    () => RESPECT_REDUCED_MOTION && window.matchMedia(REDUCED_QUERY).matches,
     () => false
   );
 }
