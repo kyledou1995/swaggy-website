@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { NotificationBell } from '@/components/portal/NotificationBell';
+import { useCurrentProfile, clearCachedProfile } from '@/lib/useCurrentProfile';
 
 interface PortalLayoutProps {
   children: React.ReactNode;
@@ -68,12 +69,21 @@ const NAV_LINKS = [
 export const PortalLayout: React.FC<PortalLayoutProps> = ({
   children,
   pageTitle,
-  userEmail = 'john@techstartup.com',
-  userName = 'John Martinez',
-  companyName = 'TechStartup Inc',
-  clientRole = 'owner',
-  userId,
+  userEmail: userEmailProp,
+  userName: userNameProp,
+  companyName: companyNameProp,
+  clientRole: clientRoleProp,
+  userId: userIdProp,
 }) => {
+  // Identity comes from the shared cached profile so it stays stable across
+  // page navigations; page props are only a fallback while it loads.
+  const { profile } = useCurrentProfile();
+  const isPlaceholder = (v?: string) => !v || v === 'User';
+  const userId = profile?.id || userIdProp;
+  const userName = profile?.full_name || (isPlaceholder(userNameProp) ? '' : userNameProp) || '';
+  const userEmail = profile?.email || userEmailProp || '';
+  const companyName = profile?.company_name || companyNameProp || '';
+  const clientRole = profile?.client_role || clientRoleProp;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [navBadges, setNavBadges] = useState<{ orders: number; messages: number }>({ orders: 0, messages: 0 });
   const pathname = usePathname();
@@ -109,6 +119,7 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
+    clearCachedProfile();
     router.push('/auth/login');
   };
 
@@ -170,10 +181,17 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
         <div className="px-6 py-4 border-t border-gray-200 space-y-3">
           <div>
             <p className="text-xs text-gray-500 font-medium">COMPANY</p>
-            <p className="text-sm font-semibold text-gray-900 mt-1">
-              {companyName}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">{userEmail}</p>
+            {companyName || userEmail ? (
+              <>
+                <p className="text-sm font-semibold text-gray-900 mt-1">{companyName}</p>
+                <p className="text-xs text-gray-500 mt-1">{userEmail}</p>
+              </>
+            ) : (
+              <div className="mt-2 space-y-2 animate-pulse">
+                <div className="h-3.5 w-32 bg-gray-200 rounded" />
+                <div className="h-3 w-40 bg-gray-100 rounded" />
+              </div>
+            )}
           </div>
           <Button
             variant="ghost"
@@ -221,7 +239,11 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
                 <User className="w-4 h-4 text-green-600" />
               </div>
               <div className="hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">{userName}</p>
+                {userName ? (
+                  <p className="text-sm font-medium text-gray-900">{userName}</p>
+                ) : (
+                  <div className="h-3.5 w-24 bg-gray-200 rounded animate-pulse" />
+                )}
               </div>
               <ChevronDown className="w-4 h-4 text-gray-400 hidden sm:block" />
             </div>

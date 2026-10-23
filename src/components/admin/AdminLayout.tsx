@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/Badge';
 import { AdminNotificationBell } from '@/components/admin/AdminNotificationBell';
 import { createClient } from '@/lib/supabase';
 import { User } from '@/types';
+import { useCurrentProfile, clearCachedProfile } from '@/lib/useCurrentProfile';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -26,8 +27,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const pathname = usePathname();
   const router = useRouter();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [fetchedUser, setUser] = useState<User | null>(null);
+  const [fetching, setIsLoading] = useState(true);
+  // Cached profile renders the admin's name instantly across page changes.
+  const { profile: cachedProfile } = useCurrentProfile();
+  const user = fetchedUser || (cachedProfile?.role === 'admin' ? cachedProfile : null);
+  const isLoading = fetching && !user;
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -102,6 +107,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
+    clearCachedProfile();
     router.push('/auth/login');
   };
 
