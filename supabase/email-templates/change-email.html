@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Confirm your new email</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f5f5;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Confirm the new email address on your Merchin account.</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f5f5f5">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
+          <!-- Logo -->
+          <tr>
+            <td style="padding:0 0 24px 4px;">
+              <a href="https://www.merchin.co" target="_blank" style="text-decoration:none;font-family:Inter,Helvetica,Arial,sans-serif;font-size:24px;font-weight:800;letter-spacing:-0.5px;color:#171717;">merchin<span style="color:#10b981;">&#9679;</span></a>
+            </td>
+          </tr>
+          <!-- Card -->
+          <tr>
+            <td bgcolor="#ffffff" style="border:1px solid #e5e5e5;border-top:4px solid #10b981;border-radius:12px;padding:36px 36px 28px 36px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding:0 0 16px 0;font-family:Inter,Helvetica,Arial,sans-serif;font-size:24px;line-height:32px;font-weight:700;color:#171717;">Confirm your new email</td>
+                </tr>
+                <tr>
+                  <td style="padding:0 0 24px 0;font-family:Inter,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#525252;">We received a request to change the email on your Merchin account from <strong style="color:#171717;">{{ .Email }}</strong> to <strong style="color:#171717;">{{ .NewEmail }}</strong>. Confirm below to finish the change.</td>
+                </tr>
+              <tr>
+                <td style="padding:8px 0 28px 0;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td align="center" bgcolor="#10b981" style="border-radius:8px;">
+                        <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:14px 28px;font-family:Inter,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;">Confirm new email</a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0 0 8px 0;font-family:Inter,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#737373;">
+                  Button not working? Paste this link into your browser:
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:0 0 8px 0;font-family:Inter,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;word-break:break-all;">
+                  <a href="{{ .ConfirmationURL }}" style="color:#059669;text-decoration:underline;">{{ .ConfirmationURL }}</a>
+                </td>
+              </tr>
+                <tr>
+                  <td style="padding:20px 0 0 0;border-top:1px solid #f0f0f0;font-family:Inter,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#737373;">If you didn't request this change, contact <a href="mailto:support@merchin.co" style="color:#059669;">support@merchin.co</a> right away.</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding:24px 16px 0 16px;font-family:Inter,Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#a3a3a3;">
+              Merchin &middot; Sourcing made simple for ecommerce brands<br>
+              Questions? <a href="mailto:support@merchin.co" style="color:#737373;text-decoration:underline;">support@merchin.co</a>
+              &middot; <a href="https://www.merchin.co/privacy" style="color:#737373;text-decoration:underline;">Privacy</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
