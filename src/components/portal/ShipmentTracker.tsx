@@ -54,7 +54,7 @@ export function ShipmentTracker({ method, departedAt, transitDays, destination =
     let raf = 0;
     const t0 = performance.now();
     const tick = (t: number) => {
-      const p = Math.min(1, (t - t0) / 2000);
+      const p = Math.min(1, Math.max(0, t - t0) / 2000);
       place(target * (1 - Math.pow(1 - p, 3)));
       if (p < 1) raf = requestAnimationFrame(tick);
     };

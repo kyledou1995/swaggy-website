@@ -66,7 +66,7 @@ export default function Journey() {
     const obs = new IntersectionObserver(([e]) => (visible = e.isIntersecting));
     obs.observe(route);
     const frame = (t: number) => {
-      if (visible) place(Math.min(1, ((t - t0) % (DURATION + PAUSE)) / DURATION));
+      if (visible) place(Math.min(1, (Math.max(0, t - t0) % (DURATION + PAUSE)) / DURATION));
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);

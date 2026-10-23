@@ -15,7 +15,7 @@ export function CountUp({ value, duration = 800 }: { value: number; duration?: n
     let raf = 0;
     const t0 = performance.now();
     const tick = (t: number) => {
-      const p = Math.min(1, (t - t0) / duration);
+      const p = Math.min(1, Math.max(0, t - t0) / duration);
       const v = Math.round(start + (value - start) * (1 - Math.pow(1 - p, 3)));
       from.current = v;
       setShown(v);
