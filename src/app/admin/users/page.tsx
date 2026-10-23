@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Shield, ShieldOff, Search, Users, Building2, Mail } from 'lucide-react';
+import { Shield, ShieldOff, Search, Users, Building2, Mail, Trash2, AlertTriangle } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -18,6 +18,11 @@ export default function AdminUsersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [deleteOrderCount, setDeleteOrderCount] = useState<number | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -96,6 +101,58 @@ export default function AdminUsersPage() {
       setTimeout(() => setFeedback(null), 3000);
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const openDeleteDialog = async (targetUser: User) => {
+    setDeleteTarget(targetUser);
+    setDeleteConfirmText('');
+    setDeleteError('');
+    setDeleteOrderCount(null);
+    const supabase = createClient();
+    const { count } = await supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_id', targetUser.id);
+    setDeleteOrderCount(count ?? 0);
+  };
+
+  const closeDeleteDialog = () => {
+    if (isDeleting) return;
+    setDeleteTarget(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({ userId: deleteTarget.id }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed to delete user.');
+
+      setUsers(prev => prev.filter(u => u.id !== deleteTarget.id));
+      setFeedback({
+        type: 'success',
+        message: `${deleteTarget.full_name} was deleted${result.ordersDeleted ? ` along with ${result.ordersDeleted} order${result.ordersDeleted === 1 ? '' : 's'}` : ''}. ${
+          result.emailSent ? 'A confirmation email was sent to them.' : 'Note: the confirmation email could not be sent.'
+        }`,
+      });
+      setTimeout(() => setFeedback(null), 6000);
+      setDeleteTarget(null);
+    } catch (error: any) {
+      setDeleteError(error.message || 'Failed to delete user.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -244,6 +301,7 @@ export default function AdminUsersPage() {
                         {u.id === currentUser?.id ? (
                           <span className="text-xs text-gray-400 italic">You</span>
                         ) : (
+                          <div className="flex items-center justify-end gap-2">
                           <Button
                             variant={u.role === 'admin' ? 'ghost' : 'primary'}
                             size="sm"
@@ -263,6 +321,17 @@ export default function AdminUsersPage() {
                               </>
                             )}
                           </Button>
+                          <button
+                            type="button"
+                            onClick={() => openDeleteDialog(u)}
+                            disabled={u.role === 'admin'}
+                            title={u.role === 'admin' ? 'Remove admin access before deleting' : 'Delete user'}
+                            aria-label={`Delete ${u.full_name}`}
+                            className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -273,6 +342,71 @@ export default function AdminUsersPage() {
           </CardBody>
         </Card>
       </div>
+
+      {/* Delete confirmation dialog */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={closeDeleteDialog}>
+          <div className="w-full max-w-md rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-red-100 rounded-full shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Delete {deleteTarget.full_name}?</h3>
+                  <p className="text-sm text-gray-500 mt-1">{deleteTarget.email}</p>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-800 space-y-1.5">
+                <p className="font-medium">This permanently deletes:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Their account and login</li>
+                  <li>
+                    {deleteOrderCount === null
+                      ? 'Counting orders…'
+                      : `${deleteOrderCount} order${deleteOrderCount === 1 ? '' : 's'}`}{' '}
+                    with all messages, updates, and uploaded files
+                  </li>
+                </ul>
+                <p className="pt-1">This cannot be undone. They will be emailed a confirmation.</p>
+              </div>
+
+              <label className="block mt-5">
+                <span className="block text-sm text-gray-700 mb-1.5">
+                  Type <span className="font-mono font-semibold">DELETE</span> to confirm
+                </span>
+                <input
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  disabled={isDeleting}
+                  autoFocus
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                />
+              </label>
+
+              {deleteError && (
+                <p className="mt-3 text-sm text-red-600">{deleteError}</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-xl">
+              <Button variant="ghost" size="sm" onClick={closeDeleteDialog} disabled={isDeleting}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={confirmDelete}
+                disabled={deleteConfirmText !== 'DELETE' || isDeleting}
+                isLoading={isDeleting}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1" />
+                Delete User
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
