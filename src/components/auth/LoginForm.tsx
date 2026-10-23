@@ -21,7 +21,7 @@ export const LoginForm: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -32,7 +32,14 @@ export const LoginForm: React.FC = () => {
         return;
       }
 
-      router.push('/portal/dashboard');
+      // Send admins straight to the admin portal.
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
+
+      router.push(profile?.role === 'admin' ? '/admin/dashboard' : '/portal/dashboard');
     } catch (err) {
       setError('An unexpected error occurred');
       setIsLoading(false);
