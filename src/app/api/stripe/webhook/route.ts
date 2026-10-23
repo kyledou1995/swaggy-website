@@ -39,69 +39,133 @@ export async function POST(request: NextRequest) {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     const orderId = session.metadata?.orderId;
+    const paymentType = session.metadata?.type || 'deposit';
 
     if (orderId && session.payment_status === 'paid') {
       const supabase = getServiceSupabase();
 
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          deposit_paid: true,
-          deposit_paid_at: new Date().toISOString(),
-          stripe_payment_intent_id: session.payment_intent as string,
-          status: 'deposit_paid',
-        })
-        .eq('id', orderId);
+      if (paymentType === 'sample') {
+        // ── Sample payment ──
+        const { error } = await supabase
+          .from('orders')
+          .update({
+            status: 'sample_approval_pending',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', orderId);
 
-      if (error) {
-        console.error('Error updating order after payment:', error);
-        return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
-      }
+        if (error) {
+          console.error('Error updating order after sample payment:', error);
+          return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
+        }
 
-      await supabase.from('order_updates').insert([{
-        order_id: orderId,
-        status: 'deposit_paid',
-        message: 'Deposit payment received and confirmed. Your order is now being processed.',
-      }]);
-
-      const { data: orderData } = await supabase
-        .from('orders')
-        .select('client_id, order_number')
-        .eq('id', orderId)
-        .single();
-
-      if (orderData?.client_id) {
-        // Notify the client
-        await supabase.from('notifications').insert([{
-          user_id: orderData.client_id,
-          type: 'order_status',
-          title: `Deposit Confirmed — Order #${orderData.order_number || orderId.slice(0, 8)}`,
-          body: 'Your deposit payment has been confirmed. We are now proceeding with your order.',
+        await supabase.from('order_updates').insert([{
           order_id: orderId,
-          target_role: 'client',
-          is_read: false,
-          email_sent: false,
+          status: 'sample_approval_pending',
+          message: 'Sample payment received. We are now preparing your samples for review.',
         }]);
 
-        // Notify all admins
-        const { data: admins } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('role', 'admin');
+        const { data: orderData } = await supabase
+          .from('orders')
+          .select('client_id, order_number')
+          .eq('id', orderId)
+          .single();
 
-        if (admins && admins.length > 0) {
-          await supabase.from('notifications').insert(
-            admins.map((admin: any) => ({
-              user_id: admin.id,
-              type: 'order_status',
-              title: `Deposit Received — #${orderData.order_number || orderId.slice(0, 8)}`,
-              body: `Client paid the deposit of $${(session.amount_total ? (session.amount_total / 100).toLocaleString(undefined, { minimumFractionDigits: 2 }) : 'N/A')}. Order is now active.`,
-              order_id: orderId,
-              target_role: 'admin',
-              is_read: false,
-              email_sent: false,
-            }))
-          );
+        if (orderData?.client_id) {
+          await supabase.from('notifications').insert([{
+            user_id: orderData.client_id,
+            type: 'order_status',
+            title: `Sample Payment Confirmed — Order #${orderData.order_number || orderId.slice(0, 8)}`,
+            body: 'Your sample payment has been confirmed. We will send photos or ship samples for your approval.',
+            order_id: orderId,
+            target_role: 'client',
+            is_read: false,
+            email_sent: false,
+          }]);
+
+          const { data: admins } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('role', 'admin');
+
+          if (admins && admins.length > 0) {
+            const amount = session.amount_total
+              ? (session.amount_total / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })
+              : 'N/A';
+            await supabase.from('notifications').insert(
+              admins.map((admin: any) => ({
+                user_id: admin.id,
+                type: 'order_status',
+                title: `Sample Payment Received — #${orderData.order_number || orderId.slice(0, 8)}`,
+                body: `Client paid $${amount} for samples. Please prepare sample photos or shipment.`,
+                order_id: orderId,
+                target_role: 'admin',
+                is_read: false,
+                email_sent: false,
+              }))
+            );
+          }
+        }
+      } else {
+        // ── Deposit payment ──
+        const { error } = await supabase
+          .from('orders')
+          .update({
+            deposit_paid: true,
+            deposit_paid_at: new Date().toISOString(),
+            stripe_payment_intent_id: session.payment_intent as string,
+            status: 'deposit_paid',
+          })
+          .eq('id', orderId);
+
+        if (error) {
+          console.error('Error updating order after payment:', error);
+          return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
+        }
+
+        await supabase.from('order_updates').insert([{
+          order_id: orderId,
+          status: 'deposit_paid',
+          message: 'Deposit payment received and confirmed. Your order is now being processed.',
+        }]);
+
+        const { data: orderData } = await supabase
+          .from('orders')
+          .select('client_id, order_number')
+          .eq('id', orderId)
+          .single();
+
+        if (orderData?.client_id) {
+          await supabase.from('notifications').insert([{
+            user_id: orderData.client_id,
+            type: 'order_status',
+            title: `Deposit Confirmed — Order #${orderData.order_number || orderId.slice(0, 8)}`,
+            body: 'Your deposit payment has been confirmed. We are now proceeding with your order.',
+            order_id: orderId,
+            target_role: 'client',
+            is_read: false,
+            email_sent: false,
+          }]);
+
+          const { data: admins } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('role', 'admin');
+
+          if (admins && admins.length > 0) {
+            await supabase.from('notifications').insert(
+              admins.map((admin: any) => ({
+                user_id: admin.id,
+                type: 'order_status',
+                title: `Deposit Received — #${orderData.order_number || orderId.slice(0, 8)}`,
+                body: `Client paid the deposit of $${(session.amount_total ? (session.amount_total / 100).toLocaleString(undefined, { minimumFractionDigits: 2 }) : 'N/A')}. Order is now active.`,
+                order_id: orderId,
+                target_role: 'admin',
+                is_read: false,
+                email_sent: false,
+              }))
+            );
+          }
         }
       }
     }

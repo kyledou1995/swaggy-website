@@ -14,13 +14,22 @@ export async function POST(request: NextRequest) {
   try {
     const stripe = getStripe();
     const body = await request.json();
-    const { orderId, orderNumber, amount, customerEmail } = body;
+    const { orderId, orderNumber, amount, customerEmail, paymentType } = body;
 
     if (!orderId || !amount) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.headers.get('origin') || 'https://swaggy-website.vercel.app';
+    const type = paymentType || 'deposit';
+
+    const isSample = type === 'sample';
+    const productName = isSample
+      ? `Sample Payment — Order #${orderNumber}`
+      : `30% Deposit — Order #${orderNumber}`;
+    const productDescription = isSample
+      ? `Sample payment for Swaggy order #${orderNumber}`
+      : `Deposit payment for Swaggy order #${orderNumber}`;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'us_bank_account'],
@@ -31,8 +40,8 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: `30% Deposit — Order #${orderNumber}`,
-              description: `Deposit payment for Swaggy order #${orderNumber}`,
+              name: productName,
+              description: productDescription,
             },
             unit_amount: Math.round(amount * 100),
           },
@@ -42,16 +51,16 @@ export async function POST(request: NextRequest) {
       metadata: {
         orderId,
         orderNumber,
-        type: 'deposit',
+        type,
       },
       payment_intent_data: {
         metadata: {
           orderId,
           orderNumber,
-          type: 'deposit',
+          type,
         },
       },
-      success_url: `${baseUrl}/portal/orders/${orderId}?payment=success`,
+      success_url: `${baseUrl}/portal/orders/${orderId}?payment=success&type=${type}`,
       cancel_url: `${baseUrl}/portal/orders/${orderId}?payment=cancelled`,
     });
 
