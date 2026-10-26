@@ -47,7 +47,7 @@ export default function AdminClientDetailPage() {
 
       const [profileRes, ordersRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', clientId).single(),
-        supabase.from('orders').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
+        supabase.from('orders').select('*').eq('client_id', clientId).neq('status', 'draft').order('created_at', { ascending: false }),
       ]);
 
       if (profileRes.data) setClient(profileRes.data as User);

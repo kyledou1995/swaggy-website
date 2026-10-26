@@ -42,6 +42,7 @@ export default function AdminClientsPage() {
       const { data: orders } = await supabase
         .from('orders')
         .select('*')
+        .neq('status', 'draft')
         .order('created_at', { ascending: false });
 
       if (!profiles) { setLoading(false); return; }

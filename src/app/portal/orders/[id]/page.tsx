@@ -111,6 +111,12 @@ export default function OrderDetailPage() {
           return;
         }
 
+        // Drafts open in the order form so they can be finished
+        if (orderData.status === 'draft') {
+          router.replace(`/portal/orders/new?draft=${orderData.id}`);
+          return;
+        }
+
         setOrder(orderData as Order);
 
         // Fetch updates

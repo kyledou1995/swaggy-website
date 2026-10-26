@@ -26,6 +26,7 @@ export default function AdminOrdersPage() {
       const { data: allOrders } = await supabase
         .from('orders')
         .select('*')
+        .neq('status', 'draft')
         .order('created_at', { ascending: false });
 
       setOrders(allOrders || []);

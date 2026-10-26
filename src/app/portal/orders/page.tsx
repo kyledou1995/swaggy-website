@@ -16,6 +16,7 @@ import { Skeleton, stagger } from '@/components/ui/Animated';
 import { Order } from '@/types';
 
 const getStatusVariant = (status: string) => {
+  if (status === 'draft') return 'neutral';
   if (['delivered', 'sample_approved'].includes(status)) return 'success';
   if (['action_required', 'cancelled'].includes(status)) return 'error';
   if (['sample_approval_pending'].includes(status)) return 'warning';
@@ -174,7 +175,7 @@ export default function OrdersPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
                         <p className="text-gray-500 text-xs">Quantity</p>
-                        <p className="font-semibold text-gray-900">{order.quantity.toLocaleString()}</p>
+                        <p className="font-semibold text-gray-900">{order.quantity ? order.quantity.toLocaleString() : '—'}</p>
                       </div>
                       <div>
                         <p className="text-gray-500 text-xs">Target Price</p>
@@ -182,7 +183,7 @@ export default function OrdersPage() {
                       </div>
                       <div>
                         <p className="text-gray-500 text-xs">Delivery Date</p>
-                        <p className="font-semibold text-gray-900">{new Date(order.target_delivery_date).toLocaleDateString()}</p>
+                        <p className="font-semibold text-gray-900">{order.target_delivery_date ? new Date(order.target_delivery_date).toLocaleDateString() : '—'}</p>
                       </div>
                       <div>
                         <p className="text-gray-500 text-xs">Created</p>
@@ -190,8 +191,13 @@ export default function OrdersPage() {
                       </div>
                     </div>
                   </div>
-                  <Link href={`/portal/orders/${order.id}`} className="w-full md:w-auto">
-                    <Button variant="primary" size="md" className="w-full md:w-auto">View Details</Button>
+                  <Link
+                    href={order.status === 'draft' ? `/portal/orders/new?draft=${order.id}` : `/portal/orders/${order.id}`}
+                    className="w-full md:w-auto"
+                  >
+                    <Button variant={order.status === 'draft' ? 'secondary' : 'primary'} size="md" className="w-full md:w-auto">
+                      {order.status === 'draft' ? 'Continue Draft' : 'View Details'}
+                    </Button>
                   </Link>
                 </div>
               </CardBody>

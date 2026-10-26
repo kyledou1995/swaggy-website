@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   CheckCircle,
+  Check,
   ArrowLeft,
   ArrowRight,
   Truck,
@@ -137,6 +138,14 @@ export default function NewOrderPage() {
   const [shipments, setShipments] = useState<ShipmentSplit[]>([{ addressId: '', quantity: '', notes: '' }]);
   const [deliveryError, setDeliveryError] = useState('');
 
+  // Drafts: unfinished orders autosave so they can be resumed from the dashboard
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftNumber, setDraftNumber] = useState<string | null>(null);
+  const [draftReady, setDraftReady] = useState(false); // true once any ?draft= has been loaded
+  const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const pendingDraftProduct = useRef<{ prefixedId: string | null; size: string | null; custom: boolean } | null>(null);
+  const draftSaveInFlight = useRef<Promise<string | null> | null>(null);
+
   useEffect(() => {
     async function loadUser() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -184,6 +193,144 @@ export default function NewOrderPage() {
 
   const [errors, setErrors] = useState<Partial<NewOrderFormData>>({});
 
+  // Order fields shared by draft saves and final submission (files are added on submit)
+  const buildOrderFields = () => ({
+    product_type: formData.productType,
+    product_description: formData.productDescription || '',
+    quantity: parseInt(formData.quantity) || 0,
+    target_price: formData.targetPrice ? parseFloat(formData.targetPrice) : null,
+    target_delivery_date: formData.targetDeliveryDate || null,
+    notes: formData.specificRequirements || '',
+    prefixed_product_id: selectedPrefixed?.id || null,
+    selected_size: selectedSize || null,
+    custom_width: isCustomMode && customWidth ? parseFloat(customWidth) : null,
+    custom_height: isCustomMode && customHeight ? parseFloat(customHeight) : null,
+    custom_length: isCustomMode && customLength ? parseFloat(customLength) : null,
+    custom_dimension_unit: isCustomMode && (customWidth || customHeight || customLength) ? 'inches' : null,
+    packaging_required: needsPackaging || false,
+    packaging_product_protection: needsPackaging ? productProtection : [],
+    packaging_individual: needsPackaging ? (individualPackaging || null) : null,
+    packaging_shipping_config: needsPackaging ? (shippingConfig || null) : null,
+    packaging_notes: needsPackaging ? (packagingNotes || null) : null,
+  });
+
+  // Load a draft when opened as /portal/orders/new?draft=<id>
+  useEffect(() => {
+    if (!userId) return;
+    const id = new URLSearchParams(window.location.search).get('draft');
+    if (!id) {
+      setDraftReady(true);
+      return;
+    }
+    (async () => {
+      const { data: d } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', id)
+        .eq('status', 'draft')
+        .single();
+      if (d) {
+        setDraftId(d.id);
+        setDraftNumber(d.order_number);
+        pendingDraftProduct.current = {
+          prefixedId: d.prefixed_product_id || null,
+          size: d.selected_size || null,
+          custom: !!(d.custom_width || d.custom_height || d.custom_length),
+        };
+        setFormData({
+          productType: d.product_type || '',
+          quantity: d.quantity ? String(d.quantity) : '',
+          targetPrice: d.target_price != null ? String(d.target_price) : '',
+          targetDeliveryDate: d.target_delivery_date || '',
+          productDescription: d.product_description || '',
+          specificRequirements: d.notes || '',
+        });
+        setCustomWidth(d.custom_width != null ? String(d.custom_width) : '');
+        setCustomHeight(d.custom_height != null ? String(d.custom_height) : '');
+        setCustomLength(d.custom_length != null ? String(d.custom_length) : '');
+        if (d.packaging_required) {
+          setNeedsPackaging(true);
+          setProductProtection(d.packaging_product_protection || []);
+          setIndividualPackaging(d.packaging_individual || '');
+          setShippingConfig(d.packaging_shipping_config || '');
+          setPackagingNotes(d.packaging_notes || '');
+        }
+        setDraftStatus('saved');
+      }
+      setDraftReady(true);
+    })();
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Save (create or update) the draft. Returns the draft id, or null on failure.
+  const saveDraft = useCallback(async (): Promise<string | null> => {
+    if (!userId || !formData.productType) return draftId;
+    if (draftSaveInFlight.current) await draftSaveInFlight.current;
+    const run = (async () => {
+      setDraftStatus('saving');
+      const fields = buildOrderFields();
+      if (draftId) {
+        const { data, error } = await supabase
+          .from('orders')
+          .update({ ...fields, updated_at: new Date().toISOString() })
+          .eq('id', draftId)
+          .eq('status', 'draft')
+          .select('id');
+        if (error || !data || data.length === 0) {
+          if (error) console.error('Draft save failed:', error.message);
+          setDraftStatus('error');
+          return draftId;
+        }
+        setDraftStatus('saved');
+        return draftId;
+      }
+      const number = `MRC-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
+      const { data, error } = await supabase
+        .from('orders')
+        .insert({ client_id: userId, order_number: number, status: 'draft', ...fields })
+        .select('id, order_number')
+        .single();
+      if (error || !data) {
+        if (error) console.error('Draft create failed:', error.message);
+        setDraftStatus('error');
+        return null;
+      }
+      setDraftId(data.id);
+      setDraftNumber(data.order_number);
+      // Keep the URL resumable if the page is refreshed
+      window.history.replaceState(null, '', `/portal/orders/new?draft=${data.id}`);
+      setDraftStatus('saved');
+      return data.id as string;
+    })();
+    draftSaveInFlight.current = run;
+    try {
+      return await run;
+    } finally {
+      draftSaveInFlight.current = null;
+    }
+  }, [userId, draftId, formData, selectedPrefixed, selectedSize, isCustomMode, customWidth, customHeight, customLength, needsPackaging, productProtection, individualPackaging, shippingConfig, packagingNotes]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Autosave shortly after the user stops typing
+  useEffect(() => {
+    if (!draftReady || submitting || showSuccess || !formData.productType) return;
+    const t = setTimeout(() => {
+      saveDraft();
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [saveDraft, draftReady, submitting, showSuccess, formData.productType]);
+
+  const handleSaveAndExit = async () => {
+    if (formData.productType) await saveDraft();
+    router.push('/portal/dashboard');
+  };
+
+  const handleDiscardDraft = async () => {
+    if (draftId && !window.confirm('Discard this draft? This cannot be undone.')) return;
+    if (draftId) {
+      await supabase.from('orders').delete().eq('id', draftId).eq('status', 'draft');
+    }
+    router.push('/portal/dashboard');
+  };
+
   // Fetch prefixed products when product type changes
   useEffect(() => {
     if (!formData.productType) {
@@ -206,6 +353,23 @@ export default function NewOrderPage() {
       const products = (data as PrefixedProduct[]) || [];
       setPrefixedProducts(products);
       setLoadingProducts(false);
+
+      // Restoring a draft: re-apply the saved product selection
+      const pending = pendingDraftProduct.current;
+      if (pending) {
+        pendingDraftProduct.current = null;
+        const match = pending.prefixedId ? products.find((pp) => pp.id === pending.prefixedId) : null;
+        if (match) {
+          setIsCustomMode(false);
+          setSelectedPrefixed(match);
+          setSelectedSize(pending.size || '');
+        } else {
+          setIsCustomMode(products.length === 0 || pending.custom);
+          setSelectedPrefixed(null);
+          setSelectedSize('');
+        }
+        return;
+      }
 
       // If no prefixed products exist for this type, go straight to custom mode
       if (products.length === 0) {
@@ -558,46 +722,51 @@ export default function NewOrderPage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const orderNumber = `MRC-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
+      const orderNumber = draftNumber || `MRC-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
 
       // Upload inspiration images, logo files, and dieline files
       const imageUrls = await uploadInspirationImages();
       const logoUrls = await uploadLogoFiles();
       const dielineUrls = await uploadDielineFiles();
 
-      const { data, error } = await supabase
-        .from('orders')
-        .insert({
-          client_id: userId,
-          order_number: orderNumber,
-          status: 'submitted',
-          product_type: formData.productType,
-          product_description: formData.productDescription,
-          quantity: parseInt(formData.quantity),
-          target_price: formData.targetPrice ? parseFloat(formData.targetPrice) : null,
-          target_delivery_date: formData.targetDeliveryDate,
-          notes: formData.specificRequirements || '',
-          prefixed_product_id: selectedPrefixed?.id || null,
-          selected_size: selectedSize || null,
-          custom_width: isCustomMode && customWidth ? parseFloat(customWidth) : null,
-          custom_height: isCustomMode && customHeight ? parseFloat(customHeight) : null,
-          custom_length: isCustomMode && customLength ? parseFloat(customLength) : null,
-          custom_dimension_unit: isCustomMode && (customWidth || customHeight || customLength) ? 'inches' : null,
-          inspiration_images: imageUrls.length > 0 ? imageUrls : [],
-          logo_files: logoUrls.length > 0 ? logoUrls : [],
-          packaging_required: needsPackaging || false,
-          packaging_product_protection: needsPackaging ? productProtection : [],
-          packaging_individual: needsPackaging ? (individualPackaging || null) : null,
-          packaging_shipping_config: needsPackaging ? (shippingConfig || null) : null,
-          packaging_notes: needsPackaging ? (packagingNotes || null) : null,
-          packaging_dieline_files: needsPackaging && individualPackaging === 'custom_box' ? dielineUrls : [],
-        })
-        .select()
-        .single();
+      const submitted = {
+        ...buildOrderFields(),
+        status: 'submitted' as const,
+        inspiration_images: imageUrls.length > 0 ? imageUrls : [],
+        logo_files: logoUrls.length > 0 ? logoUrls : [],
+        packaging_dieline_files: needsPackaging && individualPackaging === 'custom_box' ? dielineUrls : [],
+      };
 
-      if (error) {
-        console.error('Error creating order:', error.message, error.details, error.hint);
-        alert(`Failed to create order: ${error.message}`);
+      // Wait for any in-progress autosave so we don't race it
+      if (draftSaveInFlight.current) await draftSaveInFlight.current;
+
+      let data: { id: string } | null = null;
+      let error: { message: string; details?: string; hint?: string } | null = null;
+      if (draftId) {
+        const res = await supabase
+          .from('orders')
+          .update({ ...submitted, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq('id', draftId)
+          .select()
+          .single();
+        data = res.data;
+        error = res.error;
+      }
+      if (!data) {
+        const res = await supabase
+          .from('orders')
+          .insert({ client_id: userId, order_number: orderNumber, ...submitted })
+          .select()
+          .single();
+        data = res.data;
+        error = res.error;
+        // A leftover draft row would now be a duplicate — remove it
+        if (data && draftId) await supabase.from('orders').delete().eq('id', draftId).eq('status', 'draft');
+      }
+
+      if (error || !data) {
+        console.error('Error creating order:', error?.message, error?.details, error?.hint);
+        alert(`Failed to create order: ${error?.message || 'unknown error'}`);
         setSubmitting(false);
         return;
       }
@@ -701,6 +870,26 @@ export default function NewOrderPage() {
   return (
     <PortalLayout pageTitle="New Order" userId={userId} userName={userName} userEmail={userEmail} companyName={companyName}>
       <div className="max-w-2xl mx-auto">
+        {/* Draft status */}
+        <div className="flex items-center justify-between gap-3 mb-4 text-sm">
+          <span className="text-gray-500 flex items-center gap-1.5 min-w-0">
+            {draftStatus === 'saving' && <><span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-pulse" />Saving draft…</>}
+            {draftStatus === 'saved' && <><Check className="w-3.5 h-3.5 text-green-600" />Draft saved{draftNumber ? ` · ${draftNumber}` : ''}</>}
+            {draftStatus === 'error' && <span className="text-amber-600">Couldn&apos;t save draft</span>}
+            {draftStatus === 'idle' && <span className="text-gray-400">Your progress saves automatically</span>}
+          </span>
+          <div className="flex items-center gap-3 shrink-0">
+            {draftId && (
+              <button onClick={handleDiscardDraft} className="text-gray-500 hover:text-red-600 font-medium">
+                Discard
+              </button>
+            )}
+            <button onClick={handleSaveAndExit} className="text-green-600 hover:text-green-700 font-semibold">
+              Save &amp; exit
+            </button>
+          </div>
+        </div>
+
         {/* Step Indicator */}
         <div className="mb-8">
           <div className="flex items-center justify-between text-sm mb-3">

@@ -47,6 +47,7 @@ export default function AdminMessagesPage() {
         const { data: ordersData } = await supabase
           .from('orders')
           .select('*')
+          .neq('status', 'draft')
           .order('updated_at', { ascending: false });
 
         if (!ordersData || ordersData.length === 0) {

@@ -14,6 +14,7 @@ import { Order } from '@/types';
 import { CountUp, Skeleton, stagger } from '@/components/ui/Animated';
 
 const getStatusVariant = (status: string) => {
+  if (status === 'draft') return 'neutral';
   if (['delivered', 'sample_approved'].includes(status)) return 'success';
   if (['action_required', 'cancelled'].includes(status)) return 'error';
   if (['sample_approval_pending'].includes(status)) return 'warning';
@@ -110,7 +111,9 @@ export default function DashboardPage() {
     loadData();
   }, [router]);
 
-  const totalOrders = orders.length;
+  const placedOrders = orders.filter((o) => o.status !== 'draft');
+  const totalOrders = placedOrders.length;
+  const orderHref = (o: Order) => (o.status === 'draft' ? `/portal/orders/new?draft=${o.id}` : `/portal/orders/${o.id}`);
   const inProgressCount = orders.filter((o) =>
     ['submitted', 'under_review', 'sourcing', 'sample_production', 'sample_approval_pending', 'manufacturing', 'quality_check', 'packing', 'preparing_to_ship', 'in_transit'].includes(o.status)
   ).length;
@@ -188,14 +191,16 @@ export default function DashboardPage() {
               {recentOrders.map((order: Order, i) => (
                 <Link
                   key={order.id}
-                  href={`/portal/orders/${order.id}`}
+                  href={orderHref(order)}
                   className="flex items-center justify-between gap-3 px-4 py-3.5 animate-fade-up active:bg-gray-50"
                   style={stagger(i, 70, 200)}
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900">#{order.order_number || order.id.substring(0, 8)}</p>
                     <p className="text-xs text-gray-500 truncate">
-                      {order.product_type} · {order.quantity.toLocaleString()} units
+                      {order.status === 'draft'
+                        ? `${order.product_type || 'Untitled'} · Tap to continue`
+                        : `${order.product_type} · ${order.quantity.toLocaleString()} units`}
                     </p>
                   </div>
                   <Badge variant={getStatusVariant(order.status) as any} size="sm">
@@ -223,7 +228,7 @@ export default function DashboardPage() {
                         {order.order_number || order.id.substring(0, 8)}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">{order.product_type}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{order.quantity.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700">{order.quantity ? order.quantity.toLocaleString() : '—'}</td>
                       <td className="px-6 py-4">
                         <Badge variant={getStatusVariant(order.status) as any} size="sm">
                           {ORDER_STATUS_LABELS[order.status] || order.status}
@@ -233,8 +238,10 @@ export default function DashboardPage() {
                         {new Date(order.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4">
-                        <Link href={`/portal/orders/${order.id}`}>
-                          <Button variant="ghost" size="sm">View</Button>
+                        <Link href={orderHref(order)}>
+                          <Button variant={order.status === 'draft' ? 'secondary' : 'ghost'} size="sm">
+                            {order.status === 'draft' ? 'Continue' : 'View'}
+                          </Button>
                         </Link>
                       </td>
                     </tr>

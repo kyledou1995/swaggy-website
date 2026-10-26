@@ -71,6 +71,7 @@ export default function PortalMessagesPage() {
         const { data: ordersData } = await supabase
           .from('orders')
           .select('*')
+          .neq('status', 'draft')
           .in('client_id', orgMemberIds)
           .order('updated_at', { ascending: false });
 
