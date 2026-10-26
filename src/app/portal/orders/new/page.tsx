@@ -165,6 +165,7 @@ export default function NewOrderPage() {
   const [draftNumber, setDraftNumber] = useState<string | null>(null);
   const [draftReady, setDraftReady] = useState(false); // true once any ?draft= has been loaded
   const [draftStatus, setDraftStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [draftError, setDraftError] = useState('');
   const pendingDraftProduct = useRef<{ prefixedId: string | null; size: string | null; custom: boolean } | null>(null);
   const draftSaveInFlight = useRef<Promise<string | null> | null>(null);
 
@@ -297,6 +298,7 @@ export default function NewOrderPage() {
         );
         if (error || !data || data.length === 0) {
           if (error) console.error('Draft save failed:', error.message);
+          setDraftError(error?.message || 'No permission to update this draft (database policy missing).');
           setDraftStatus('error');
           return draftId;
         }
@@ -310,6 +312,7 @@ export default function NewOrderPage() {
       );
       if (error || !data) {
         if (error) console.error('Draft create failed:', error.message);
+        setDraftError(error?.message || 'Unknown error');
         setDraftStatus('error');
         return null;
       }
@@ -891,7 +894,11 @@ export default function NewOrderPage() {
           <span className="text-gray-500 flex items-center gap-1.5 min-w-0">
             {draftStatus === 'saving' && <><span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-pulse" />Saving draft…</>}
             {draftStatus === 'saved' && <><Check className="w-3.5 h-3.5 text-green-600" />Draft saved{draftNumber ? ` · ${draftNumber}` : ''}</>}
-            {draftStatus === 'error' && <span className="text-amber-600">Couldn&apos;t save draft</span>}
+            {draftStatus === 'error' && (
+              <span className="text-amber-600 break-words" title={draftError}>
+                Couldn&apos;t save draft{draftError ? ` — ${draftError}` : ''}
+              </span>
+            )}
             {draftStatus === 'idle' && <span className="text-gray-400">Your progress saves automatically</span>}
           </span>
           <div className="flex items-center gap-3 shrink-0">
