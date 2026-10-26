@@ -82,6 +82,28 @@ const SHIPPING_CONFIG_OPTIONS = [
 
 const supabase = createClient();
 
+type WriteResult<T> = { data: T | null; error: { message: string; details?: string; hint?: string } | null };
+
+/**
+ * Run an insert/update, and if the database reports a column that doesn't exist
+ * yet (e.g. a migration hasn't been applied), drop that field and retry so the
+ * order still goes through. Missing columns are logged for follow-up.
+ */
+async function writeWithMissingColumnRetry<T>(
+  payload: Record<string, unknown>,
+  run: (p: Record<string, unknown>) => PromiseLike<WriteResult<T>>
+): Promise<WriteResult<T>> {
+  const body = { ...payload };
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const res = await run(body);
+    const missing = res.error?.message?.match(/Could not find the '([^']+)' column/);
+    if (!missing || !(missing[1] in body)) return res;
+    console.warn(`orders.${missing[1]} is missing in the database; saving without it.`);
+    delete body[missing[1]];
+  }
+  return run(body);
+}
+
 export default function NewOrderPage() {
   const router = useRouter();
   const [currentStep, setCurrentStepRaw] = useState(1);
@@ -269,12 +291,10 @@ export default function NewOrderPage() {
       setDraftStatus('saving');
       const fields = buildOrderFields();
       if (draftId) {
-        const { data, error } = await supabase
-          .from('orders')
-          .update({ ...fields, updated_at: new Date().toISOString() })
-          .eq('id', draftId)
-          .eq('status', 'draft')
-          .select('id');
+        const { data, error } = await writeWithMissingColumnRetry<{ id: string }[]>(
+          { ...fields, updated_at: new Date().toISOString() },
+          (body) => supabase.from('orders').update(body).eq('id', draftId).eq('status', 'draft').select('id')
+        );
         if (error || !data || data.length === 0) {
           if (error) console.error('Draft save failed:', error.message);
           setDraftStatus('error');
@@ -284,11 +304,10 @@ export default function NewOrderPage() {
         return draftId;
       }
       const number = `MRC-${String(Math.floor(Math.random() * 1000000)).padStart(6, '0')}`;
-      const { data, error } = await supabase
-        .from('orders')
-        .insert({ client_id: userId, order_number: number, status: 'draft', ...fields })
-        .select('id, order_number')
-        .single();
+      const { data, error } = await writeWithMissingColumnRetry<{ id: string; order_number: string }>(
+        { client_id: userId, order_number: number, status: 'draft', ...fields },
+        (body) => supabase.from('orders').insert(body).select('id, order_number').single()
+      );
       if (error || !data) {
         if (error) console.error('Draft create failed:', error.message);
         setDraftStatus('error');
@@ -743,21 +762,18 @@ export default function NewOrderPage() {
       let data: { id: string } | null = null;
       let error: { message: string; details?: string; hint?: string } | null = null;
       if (draftId) {
-        const res = await supabase
-          .from('orders')
-          .update({ ...submitted, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-          .eq('id', draftId)
-          .select()
-          .single();
+        const res = await writeWithMissingColumnRetry<{ id: string }>(
+          { ...submitted, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+          (body) => supabase.from('orders').update(body).eq('id', draftId).select().single()
+        );
         data = res.data;
         error = res.error;
       }
       if (!data) {
-        const res = await supabase
-          .from('orders')
-          .insert({ client_id: userId, order_number: orderNumber, ...submitted })
-          .select()
-          .single();
+        const res = await writeWithMissingColumnRetry<{ id: string }>(
+          { client_id: userId, order_number: orderNumber, ...submitted },
+          (body) => supabase.from('orders').insert(body).select().single()
+        );
         data = res.data;
         error = res.error;
         // A leftover draft row would now be a duplicate — remove it
