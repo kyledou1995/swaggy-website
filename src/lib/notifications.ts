@@ -2,6 +2,14 @@ import { createClient } from '@/lib/supabase';
 import { NotificationType } from '@/types';
 import { SupabaseClient } from '@supabase/supabase-js';
 import type { ClientEmailEvent } from '@/lib/client-emails';
+import type { AdminEmailEvent } from '@/lib/admin-emails';
+
+export interface AdminEmailOptions {
+  event: AdminEmailEvent;
+  amount?: number;
+  /** Defaults to the notification body. */
+  message?: string;
+}
 
 export interface OrderEmailOptions {
   event: ClientEmailEvent;
@@ -17,7 +25,7 @@ export interface OrderEmailOptions {
  */
 export async function requestOrderEmail(
   orderId: string,
-  options: OrderEmailOptions,
+  options: OrderEmailOptions | (AdminEmailOptions & { audience: 'admin' }),
   supabaseClient?: SupabaseClient
 ) {
   try {
@@ -169,14 +177,23 @@ export async function notifyAdmins({
   title,
   body,
   supabaseClient,
+  email,
 }: {
   orderId?: string;
   type: NotificationType;
   title: string;
   body: string;
   supabaseClient?: SupabaseClient;
+  /** Also email the admin team. Message emails are sent automatically for new_message. */
+  email?: AdminEmailOptions | false;
 }) {
   const supabase = supabaseClient || createClient();
+
+  const emailOptions: AdminEmailOptions | null =
+    email === false ? null : email ? email : type === 'new_message' ? { event: 'new_message' } : null;
+  if (emailOptions && orderId) {
+    requestOrderEmail(orderId, { audience: 'admin', ...emailOptions, message: emailOptions.message ?? body }, supabase);
+  }
 
   // Get all admin users
   const { data: admins } = await supabase

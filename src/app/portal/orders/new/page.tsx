@@ -827,6 +827,7 @@ export default function NewOrderPage() {
       requestOrderEmail(data.id, { event: 'order_received' }, supabase);
 
       await notifyAdmins({
+        email: { event: 'new_order' },
         orderId: data.id,
         type: 'order_status',
         title: `New Order Submitted — ${orderNumber}`,

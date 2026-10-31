@@ -209,6 +209,7 @@ export default function PortalMessagesPage() {
 
       // Notify admins about the new message
       await notifyAdmins({
+        email: { event: 'new_message', message: newMessage.trim() },
         orderId: selectedThread.order.id,
         type: 'new_message',
         title: `New message from ${user.full_name}`,

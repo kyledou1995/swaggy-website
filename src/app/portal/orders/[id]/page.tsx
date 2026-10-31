@@ -293,6 +293,7 @@ export default function OrderDetailPage() {
 
     // Notify admins
     await notifyAdmins({
+      email: { event: 'new_message', message: newMessage },
       orderId,
       type: 'new_message',
       title: `New message from ${user.full_name}`,
@@ -347,6 +348,7 @@ export default function OrderDetailPage() {
 
         // Notify admins
         await notifyAdmins({
+          email: { event: 'sample_approved' },
           orderId,
           type: 'order_status',
           title: `Sample Approved — #${order.order_number || orderId.slice(0, 8)}`,
@@ -401,6 +403,7 @@ export default function OrderDetailPage() {
 
         // Notify admins
         await notifyAdmins({
+          email: { event: 'sample_changes_requested', message: changesMessage },
           orderId,
           type: 'order_status',
           title: `Sample Changes Requested — #${order!.order_number || orderId.slice(0, 8)}`,
@@ -461,6 +464,7 @@ export default function OrderDetailPage() {
 
       // Notify admins
       await notifyAdmins({
+        email: { event: 'quote_accepted' },
         orderId,
         type: 'order_status',
         title: `Quote Accepted — #${order.order_number || orderId.slice(0, 8)}`,
@@ -538,6 +542,7 @@ export default function OrderDetailPage() {
       }]);
 
       await notifyAdmins({
+        email: { event: 'physical_samples_requested' },
         orderId,
         type: 'order_status',
         title: `Physical Samples Requested — #${order.order_number || orderId.slice(0, 8)}`,
@@ -595,6 +600,7 @@ export default function OrderDetailPage() {
       }]);
 
       await notifyAdmins({
+        email: { event: 'sample_pricing_approved' },
         orderId,
         type: 'order_status',
         title: `Sample Pricing Approved — #${order.order_number || orderId.slice(0, 8)}`,
@@ -710,6 +716,7 @@ export default function OrderDetailPage() {
       }]);
 
       await notifyAdmins({
+        email: { event: 'order_cancelled', message: voidReason ? `Reason: ${voidReason}` : undefined },
         orderId,
         type: 'order_status',
         title: `Order Voided — #${order.order_number || orderId.slice(0, 8)}`,

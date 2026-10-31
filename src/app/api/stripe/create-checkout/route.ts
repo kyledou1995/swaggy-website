@@ -23,13 +23,18 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.headers.get('origin') || 'https://merchin.co';
     const type = paymentType || 'deposit';
 
-    const isSample = type === 'sample';
-    const productName = isSample
-      ? `Sample Payment — Order #${orderNumber}`
-      : `30% Deposit — Order #${orderNumber}`;
-    const productDescription = isSample
-      ? `Sample payment for Merchin order #${orderNumber}`
-      : `Deposit payment for Merchin order #${orderNumber}`;
+    const productName =
+      type === 'sample'
+        ? `Sample Payment — Order #${orderNumber}`
+        : type === 'final'
+          ? `Final Balance — Order #${orderNumber}`
+          : `30% Deposit — Order #${orderNumber}`;
+    const productDescription =
+      type === 'sample'
+        ? `Sample payment for Merchin order #${orderNumber}`
+        : type === 'final'
+          ? `Remaining balance for Merchin order #${orderNumber}`
+          : `Deposit payment for Merchin order #${orderNumber}`;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card', 'us_bank_account'],
