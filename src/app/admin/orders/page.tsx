@@ -15,6 +15,7 @@ import Link from 'next/link';
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [clients, setClients] = useState<Record<string, { company_name?: string | null; full_name?: string | null }>>({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
@@ -32,6 +33,16 @@ export default function AdminOrdersPage() {
         .order('created_at', { ascending: false });
 
       setOrders(allOrders || []);
+
+      // Client company names for the Company column
+      const clientIds = [...new Set((allOrders || []).map((o: Order) => o.client_id).filter(Boolean))];
+      if (clientIds.length) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, company_name, full_name')
+          .in('id', clientIds);
+        setClients(Object.fromEntries((profiles || []).map((p: { id: string; company_name: string | null; full_name: string | null }) => [p.id, p])));
+      }
       setLoading(false);
     }
 
@@ -45,14 +56,18 @@ export default function AdminOrdersPage() {
     return orders.filter((order) => {
       const inView = view === 'archived' ? order.status === 'cancelled' : order.status !== 'cancelled';
       if (!inView) return false;
+      const q = searchQuery.toLowerCase();
+      const client = clients[order.client_id];
       const matchesSearch =
+        (client?.company_name || '').toLowerCase().includes(q) ||
+        (client?.full_name || '').toLowerCase().includes(q) ||
         (order.order_number || order.id).toLowerCase().includes(searchQuery.toLowerCase()) ||
         (order.product_type || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (order.product_description || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [orders, searchQuery, statusFilter, view]);
+  }, [orders, clients, searchQuery, statusFilter, view]);
 
   const statusOptions = [
     { value: 'all', label: 'All Statuses' },
@@ -105,7 +120,7 @@ export default function AdminOrdersPage() {
             <div className="flex flex-col md:flex-row gap-4">
               <div className="flex-1">
                 <Input
-                  placeholder="Search by order ID or product..."
+                  placeholder="Search by order #, company, client, or product..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -155,6 +170,7 @@ export default function AdminOrdersPage() {
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Order #</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Company</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Product</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Qty</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
@@ -170,6 +186,12 @@ export default function AdminOrdersPage() {
                       >
                         <td className="px-6 py-4">
                           <span className="font-semibold text-gray-900">{order.order_number || order.id.substring(0, 8)}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="font-medium text-gray-900">{clients[order.client_id]?.company_name || '—'}</p>
+                          {clients[order.client_id]?.full_name && (
+                            <p className="text-sm text-gray-500">{clients[order.client_id]?.full_name}</p>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <div>
