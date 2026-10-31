@@ -13,6 +13,7 @@ import { StatusTimeline, TimelineStep } from '@/components/ui/StatusTimeline';
 import { Celebration } from '@/components/ui/Celebration';
 import { Skeleton } from '@/components/ui/Animated';
 import { ShipmentTracker } from '@/components/portal/ShipmentTracker';
+import { InfoRequestsCard } from '@/components/portal/InfoRequestsCard';
 import { createClient } from '@/lib/supabase';
 import { ORDER_STATUS_LABELS, ORDER_TIMELINE } from '@/lib/constants';
 import { notifyAdmins } from '@/lib/notifications';
@@ -767,6 +768,18 @@ export default function OrderDetailPage() {
               <p className="text-sm text-yellow-700">You can complete the payment at any time using the button below.</p>
             </div>
           </div>
+        )}
+
+        {/* Information requested by the Merchin team */}
+        {user && (
+          <InfoRequestsCard
+            orderId={order.id}
+            userId={user.id}
+            onSubmitted={async () => {
+              const { data } = await createClient().from('orders').select('*').eq('id', order.id).single();
+              if (data) setOrder(data as Order);
+            }}
+          />
         )}
 
         {/* Cancellation Banner */}

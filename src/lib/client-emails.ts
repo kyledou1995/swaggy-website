@@ -22,7 +22,8 @@ export type ClientEmailEvent =
   | 'status_change'
   | 'cancelled'
   | 'reactivated'
-  | 'new_message';
+  | 'new_message'
+  | 'info_requested';
 
 export interface ClientEmailContext {
   order: Order;
@@ -320,6 +321,16 @@ export function renderClientEmail(event: ClientEmailEvent, ctx: ClientEmailConte
         cta: 'View your order',
       };
       break;
+    case 'info_requested':
+      p = {
+        subject: `Action needed: we need more information for ${no}`,
+        preheader: msg ? msg.slice(0, 90) : 'Please upload a file or reply in your portal.',
+        heading: 'We need a bit more information',
+        body: 'Your order is on hold until we hear back. Open your order to upload photos or files, or reply with the details below.',
+        quote: msg,
+        cta: 'Upload or reply',
+      };
+      break;
     case 'new_message':
       p = {
         subject: `New message from Merchin about ${no}`,
@@ -350,9 +361,9 @@ export function renderClientEmail(event: ClientEmailEvent, ctx: ClientEmailConte
           subject: `Action needed on order ${no}`,
           preheader: 'We need a bit more information to keep going.',
           heading: 'We need a bit more information',
-          body: 'To keep your order moving, please open it in your portal and respond to our latest message.',
+          body: 'Your order is on hold until we hear back. Open it in your portal to upload photos or files, or reply with the details.',
           quote: msg,
-          cta: 'Respond now',
+          cta: 'Upload or reply',
         };
       } else if (status === 'in_transit') {
         p = {

@@ -18,6 +18,7 @@ import {
   PRODUCT_TYPES,
 } from '@/lib/constants';
 import { OrderStatus, Order, OrderUpdate, OrderMessage, OrderSpecification, User } from '@/types';
+import { InfoRequestsPanel } from '@/components/admin/InfoRequestsPanel';
 import { notifyOrgMembers } from '@/lib/notifications';
 import Link from 'next/link';
 
@@ -39,6 +40,7 @@ export default function AdminOrderDetailPage() {
   const [isLoadingMessage, setIsLoadingMessage] = useState(false);
   const [client, setClient] = useState<User | null>(null);
   const [adminUser, setAdminUser] = useState<{ id: string } | null>(null);
+  const [infoRequestsKey, setInfoRequestsKey] = useState(0);
 
   // Sample approval form state
   const [showSampleForm, setShowSampleForm] = useState(false);
@@ -351,6 +353,20 @@ export default function AdminOrderDetailPage() {
         .eq('id', orderId);
 
       if (orderError) throw orderError;
+
+      // "Action Required" opens an information request the client can answer with uploads
+      if (newStatus === 'action_required') {
+        const { error: reqError } = await supabase.from('order_info_requests').insert({
+          order_id: orderId,
+          requested_by: adminUser?.id || null,
+          request_type: 'file',
+          message: updateMessage.trim(),
+          status: 'open',
+          previous_status: order?.status && order.status !== 'action_required' ? order.status : null,
+        });
+        if (reqError) console.warn('Could not create info request:', reqError.message);
+        setInfoRequestsKey((k) => k + 1);
+      }
 
       // Create update record
       const { error: updateError } = await supabase
@@ -1917,8 +1933,7 @@ export default function AdminOrderDetailPage() {
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={handleRequestInfo}
-                    isLoading={isLoadingStatus}
+                    onClick={() => document.getElementById('info-requests')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                     className="w-full"
                   >
                     Request Information
@@ -1960,6 +1975,14 @@ export default function AdminOrderDetailPage() {
                 </div>
               </CardBody>
             </Card>
+
+            {/* Information Requests */}
+            <InfoRequestsPanel
+              order={order}
+              adminUserId={adminUser?.id}
+              refreshKey={infoRequestsKey}
+              onStatusChange={(status) => setOrder((prev) => (prev ? { ...prev, status } : prev))}
+            />
 
             {/* Cancel Order */}
             {order.status !== 'cancelled' && (

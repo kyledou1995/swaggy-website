@@ -15,7 +15,8 @@ export type AdminEmailEvent =
   | 'sample_changes_requested'
   | 'deposit_paid'
   | 'final_payment_paid'
-  | 'order_cancelled';
+  | 'order_cancelled'
+  | 'info_provided';
 
 export interface AdminEmailContext {
   order: Order;
@@ -256,6 +257,17 @@ export function renderAdminEmail(event: AdminEmailEvent, ctx: AdminEmailContext)
         body: 'The balance is paid in full. Book the shipment and mark the order in transit.',
         highlight: ctx.amount ? ['Amount paid', money(ctx.amount)] : undefined,
         cta: 'Open order',
+      };
+      break;
+    case 'info_provided':
+      p = {
+        subject: `Information received on ${no} from ${company}`,
+        preheader: 'The client responded to your information request.',
+        tone: 'action',
+        heading: `${who} sent the requested information`,
+        body: 'Review their response and uploads on the order page, then continue the order.',
+        quote: msg,
+        cta: 'Review response',
       };
       break;
     case 'order_cancelled':
