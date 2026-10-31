@@ -225,6 +225,7 @@ export default function AdminOrderDetailPage() {
       // Notify client
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'quote_ready' },
           orderId,
           clientId: order.client_id,
           type: 'order_status',
@@ -270,6 +271,7 @@ export default function AdminOrderDetailPage() {
 
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'deposit_confirmed' },
           orderId, clientId: order.client_id, type: 'order_status',
           title: `Deposit Confirmed — Order #${order.order_number || orderId.slice(0, 8)}`,
           body: 'Your deposit has been confirmed. We are now proceeding with your order.',
@@ -305,6 +307,7 @@ export default function AdminOrderDetailPage() {
 
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'final_payment_confirmed' },
           orderId, clientId: order.client_id, type: 'order_status',
           title: `Payment Confirmed — Order #${order.order_number || orderId.slice(0, 8)}`,
           body: 'Your final payment has been confirmed. We are now preparing your order for shipment.',
@@ -369,6 +372,7 @@ export default function AdminOrderDetailPage() {
       // Send notification to client org
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'status_change', status: newStatus, message: updateMessage },
           orderId,
           clientId: order.client_id,
           type: 'order_status',
@@ -427,6 +431,7 @@ export default function AdminOrderDetailPage() {
       // Send notification for new message
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'new_message', message: messageText },
           orderId,
           clientId: order.client_id,
           type: 'new_message',
@@ -478,6 +483,7 @@ export default function AdminOrderDetailPage() {
       // Send notification
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'status_change', status: actionStatus, message: actionMessage },
           orderId,
           clientId: order.client_id,
           type: 'order_status',
@@ -574,6 +580,7 @@ export default function AdminOrderDetailPage() {
 
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'sample_pricing' },
           orderId,
           clientId: order.client_id,
           type: 'order_status',
@@ -661,6 +668,7 @@ export default function AdminOrderDetailPage() {
 
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'sample_photos' },
           orderId,
           clientId: order.client_id,
           type: 'order_status',
@@ -722,6 +730,7 @@ export default function AdminOrderDetailPage() {
 
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'sample_qty' },
           orderId,
           clientId: order.client_id,
           type: 'order_status',
@@ -762,6 +771,7 @@ export default function AdminOrderDetailPage() {
 
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'samples_shipped' },
           orderId, clientId: order.client_id, type: 'order_status',
           title: `Samples Shipped — #${order.order_number || orderId.slice(0, 8)}`,
           body: msg,
@@ -823,6 +833,7 @@ export default function AdminOrderDetailPage() {
 
       if (order.client_id) {
         await notifyOrgMembers({
+          email: { event: 'final_payment_required' },
           orderId,
           clientId: order.client_id,
           type: 'order_status',
@@ -894,6 +905,7 @@ export default function AdminOrderDetailPage() {
 
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'cancelled', message: cancelReason ? `Reason: ${cancelReason}` : undefined },
           orderId,
           clientId: order.client_id,
           type: 'order_status',
@@ -941,6 +953,7 @@ export default function AdminOrderDetailPage() {
 
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'reactivated' },
           orderId,
           clientId: order.client_id,
           type: 'order_status',
@@ -995,6 +1008,7 @@ export default function AdminOrderDetailPage() {
 
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'payment_request', amount },
           orderId, clientId: order.client_id, type: 'order_status',
           title: `Payment Request — Order #${order?.order_number || orderId.slice(0, 8)}`,
           body: `A payment of $${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} has been requested.`,
@@ -1067,6 +1081,7 @@ export default function AdminOrderDetailPage() {
 
       if (order?.client_id) {
         await notifyOrgMembers({
+          email: { event: 'refund', amount: parseFloat(refundAmount) },
           orderId,
           clientId: order.client_id,
           type: 'order_status',
@@ -2369,6 +2384,7 @@ export default function AdminOrderDetailPage() {
 
                             if (order.client_id) {
                               await notifyOrgMembers({
+                                email: { event: 'invoice' },
                                 orderId, clientId: order.client_id, type: 'order_status',
                                 title: `Invoice — Order #${order.order_number || orderId.slice(0, 8)}`,
                                 body: 'An invoice has been sent for your order. Please check your messages.',

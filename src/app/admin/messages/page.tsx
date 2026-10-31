@@ -175,6 +175,7 @@ export default function AdminMessagesPage() {
           title: `New message on Order #${selectedThread.order.order_number || selectedThread.order.id.slice(0, 8)}`,
           body: newMessage.trim().length > 100 ? newMessage.trim().slice(0, 100) + '...' : newMessage.trim(),
           supabaseClient: supabase,
+          email: { event: 'new_message', message: newMessage.trim() },
         });
       }
     } catch (error) {

@@ -1,6 +1,40 @@
 import { createClient } from '@/lib/supabase';
 import { NotificationType } from '@/types';
 import { SupabaseClient } from '@supabase/supabase-js';
+import type { ClientEmailEvent } from '@/lib/client-emails';
+
+export interface OrderEmailOptions {
+  event: ClientEmailEvent;
+  status?: string;
+  amount?: number;
+  /** Defaults to the notification body. */
+  message?: string;
+}
+
+/**
+ * Ask the server to email the client's organization about an order update.
+ * Runs in the browser (admin portal / order form); fire-and-forget.
+ */
+export async function requestOrderEmail(
+  orderId: string,
+  options: OrderEmailOptions,
+  supabaseClient?: SupabaseClient
+) {
+  try {
+    if (typeof window === 'undefined') return;
+    const supabase = supabaseClient || createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    await fetch('/api/notifications/email', {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ orderId, ...options }),
+    });
+  } catch (err) {
+    console.warn('Could not send order email:', err);
+  }
+}
 
 interface CreateNotificationParams {
   userId: string;
@@ -50,6 +84,7 @@ export async function notifyOrgMembers({
   title,
   body,
   supabaseClient,
+  email,
 }: {
   orderId: string;
   clientId: string;
@@ -57,8 +92,16 @@ export async function notifyOrgMembers({
   title: string;
   body: string;
   supabaseClient?: SupabaseClient;
+  /** Also email the client. Message emails are sent automatically for new_message. */
+  email?: OrderEmailOptions | false;
 }) {
   const supabase = supabaseClient || createClient();
+
+  const emailOptions: OrderEmailOptions | null =
+    email === false ? null : email ? email : type === 'new_message' ? { event: 'new_message' } : null;
+  if (emailOptions) {
+    requestOrderEmail(orderId, { ...emailOptions, message: emailOptions.message ?? body }, supabase);
+  }
 
   // Get the org of the client who owns the order
   const { data: profile } = await supabase

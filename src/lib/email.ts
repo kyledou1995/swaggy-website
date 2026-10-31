@@ -9,11 +9,14 @@ export async function sendEmail({
   subject,
   html,
   text,
+  replyTo = 'support@merchin.co',
 }: {
   to: string;
   subject: string;
   html: string;
   text: string;
+  /** Pass null for no-reply emails. */
+  replyTo?: string | null;
 }): Promise<{ sent: boolean; error?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return { sent: false, error: 'RESEND_API_KEY is not configured' };
@@ -25,7 +28,7 @@ export async function sendEmail({
       body: JSON.stringify({
         from: process.env.EMAIL_FROM || 'Merchin <noreply@merchin.co>',
         to: [to],
-        reply_to: 'support@merchin.co',
+        ...(replyTo ? { reply_to: replyTo } : {}),
         subject,
         html,
         text,

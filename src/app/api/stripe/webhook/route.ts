@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { sendOrderEmail } from '@/lib/order-emails';
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) {
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (orderData?.client_id) {
+          await sendOrderEmail(supabase, { orderId, event: 'sample_paid' });
           await supabase.from('notifications').insert([{
             user_id: orderData.client_id,
             type: 'order_status',
@@ -136,6 +138,7 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (orderData?.client_id) {
+          await sendOrderEmail(supabase, { orderId, event: 'deposit_confirmed' });
           await supabase.from('notifications').insert([{
             user_id: orderData.client_id,
             type: 'order_status',

@@ -31,7 +31,7 @@ import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
 import { createClient } from '@/lib/supabase';
-import { notifyAdmins } from '@/lib/notifications';
+import { notifyAdmins, requestOrderEmail } from '@/lib/notifications';
 import { PRODUCT_TYPES } from '@/lib/constants';
 import { DeliveryAddress, PrefixedProduct } from '@/types';
 
@@ -822,6 +822,9 @@ export default function NewOrderPage() {
       const productLabel = selectedPrefixed
         ? `${selectedPrefixed.name} (${selectedSize || 'no size'})`
         : formData.productType;
+
+      // Confirmation email to the client's team
+      requestOrderEmail(data.id, { event: 'order_received' }, supabase);
 
       await notifyAdmins({
         orderId: data.id,
