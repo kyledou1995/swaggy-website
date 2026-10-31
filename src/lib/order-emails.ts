@@ -21,21 +21,20 @@ export async function sendOrderEmail(admin: SupabaseClient, req: OrderEmailReque
   const { data: order } = await admin.from('orders').select('*').eq('id', req.orderId).single();
   if (!order) return { sent: 0, error: 'Order not found' };
 
-  // Recipients: active members of the client's organization (or just the owner)
-  const { data: owner } = await admin
-    .from('profiles')
-    .select('id, email, full_name, organization_id, email_order_status, email_new_message, invite_status')
-    .eq('id', order.client_id)
-    .single();
+  // Recipients: active members of the client's organization (or just the owner).
+  // select('*') so a missing optional column can't break the lookup.
+  type Member = { id: string; email: string; full_name: string | null; organization_id?: string | null; email_order_status?: boolean | null; email_new_message?: boolean | null; invite_status?: string | null };
+  const { data: owner, error: ownerError } = await admin.from('profiles').select('*').eq('id', order.client_id).single();
+  if (ownerError) console.error('order-email: owner lookup failed', ownerError.message);
 
-  type Member = { id: string; email: string; full_name: string | null; email_order_status: boolean | null; email_new_message: boolean | null; invite_status?: string | null };
   let members: Member[] = owner ? [owner as Member] : [];
   if (owner?.organization_id) {
-    const { data } = await admin
-      .from('profiles')
-      .select('id, email, full_name, email_order_status, email_new_message, invite_status')
-      .eq('organization_id', owner.organization_id);
-    if (data?.length) members = (data as Member[]).filter((m) => !m.invite_status || m.invite_status === 'active');
+    const { data, error } = await admin.from('profiles').select('*').eq('organization_id', owner.organization_id);
+    if (error) console.error('order-email: org lookup failed', error.message);
+    if (data?.length) {
+      const active = (data as Member[]).filter((m) => !m.invite_status || m.invite_status === 'active');
+      if (active.length) members = active;
+    }
   }
 
   const wantsEmail = (m: Member) =>
@@ -57,6 +56,7 @@ export async function sendOrderEmail(admin: SupabaseClient, req: OrderEmailReque
     if (res.sent) sent++;
     else if (res.error) errors.push(res.error);
   }
-  if (errors.length) console.warn('Order email errors:', errors);
-  return { sent, error: errors[0] };
+  if (errors.length) console.error('order-email: send errors', errors);
+  console.log(`order-email: ${req.event} for ${order.order_number || order.id} → ${sent}/${recipients.length} sent (${members.length} members)`);
+  return { sent, recipients: recipients.length, error: errors[0] ?? (recipients.length ? undefined : 'No recipients with email notifications enabled') };
 }

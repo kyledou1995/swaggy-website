@@ -25,12 +25,14 @@ export async function requestOrderEmail(
     const supabase = supabaseClient || createClient();
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
-    await fetch('/api/notifications/email', {
+    const res = await fetch('/api/notifications/email', {
       method: 'POST',
       keepalive: true,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ orderId, ...options }),
     });
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok || result.error) console.warn('Order email not sent:', res.status, result);
   } catch (err) {
     console.warn('Could not send order email:', err);
   }

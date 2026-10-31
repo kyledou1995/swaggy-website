@@ -46,3 +46,12 @@ export async function POST(request: NextRequest) {
   });
   return NextResponse.json(result);
 }
+
+/** Configuration check (booleans only, no secrets). */
+export async function GET() {
+  return NextResponse.json({
+    resendKey: !!process.env.RESEND_API_KEY,
+    serviceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    from: process.env.EMAIL_FROM || 'Merchin <noreply@merchin.co>',
+  });
+}
