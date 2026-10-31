@@ -21,7 +21,7 @@ create table if not exists public.order_info_requests (
 create index if not exists order_info_requests_order_id_idx on public.order_info_requests(order_id);
 
 -- Who can see an order: admins, the order owner, and members of the owner's organization
-create or replace function public.can_access_order(target_order uuid)
+create or replace function public.merchin_can_access_order(target_order uuid)
 returns boolean
 language sql
 stable
@@ -42,7 +42,7 @@ as $$
   );
 $$;
 
-create or replace function public.is_admin()
+create or replace function public.merchin_is_admin()
 returns boolean
 language sql
 stable
@@ -57,21 +57,21 @@ alter table public.order_info_requests enable row level security;
 drop policy if exists "Order members can view info requests" on public.order_info_requests;
 create policy "Order members can view info requests"
   on public.order_info_requests for select
-  using (public.can_access_order(order_id));
+  using (public.merchin_can_access_order(order_id));
 
 drop policy if exists "Admins can create info requests" on public.order_info_requests;
 create policy "Admins can create info requests"
   on public.order_info_requests for insert
-  with check (public.is_admin());
+  with check (public.merchin_is_admin());
 
 drop policy if exists "Admins can update info requests" on public.order_info_requests;
 create policy "Admins can update info requests"
   on public.order_info_requests for update
-  using (public.is_admin());
+  using (public.merchin_is_admin());
 
 drop policy if exists "Admins can delete info requests" on public.order_info_requests;
 create policy "Admins can delete info requests"
   on public.order_info_requests for delete
-  using (public.is_admin());
+  using (public.merchin_is_admin());
 
 notify pgrst, 'reload schema';
