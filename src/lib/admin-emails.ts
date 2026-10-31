@@ -36,7 +36,8 @@ const fmtDate = (d: string | null | undefined) =>
   d ? new Date(d.length === 10 ? `${d}T12:00:00Z` : d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
 
 type Tone = 'action' | 'money' | 'info' | 'alert';
-const TONES: Record<Tone, { bg: string; fg: string; label: string }> = {
+const TONES: Record<Tone | 'signup', { bg: string; fg: string; label: string }> = {
+  signup: { bg: '#ede9fe', fg: '#6d28d9', label: 'New signup' },
   action: { bg: '#fef3c7', fg: '#b45309', label: 'Action needed' },
   money: { bg: '#dcfce7', fg: '#15803d', label: 'Payment received' },
   info: { bg: '#e0f2fe', fg: '#0369a1', label: 'Update' },
@@ -46,7 +47,7 @@ const TONES: Record<Tone, { bg: string; fg: string; label: string }> = {
 interface Parts {
   subject: string;
   preheader: string;
-  tone: Tone;
+  tone: Tone | 'signup';
   heading: string;
   body: string; // trusted HTML
   quote?: string | null;
@@ -57,12 +58,13 @@ interface Parts {
   ctaPath?: string;
 }
 
-function render(p: Parts, ctx: AdminEmailContext) {
+function render(p: Parts, ctx: Omit<AdminEmailContext, 'order'> & { order?: Order | null }) {
   const o = ctx.order;
-  const no = o.order_number || o.id.slice(0, 8);
-  const url = `${ctx.baseUrl}${p.ctaPath || `/admin/orders/${o.id}`}`;
+  const no = o ? o.order_number || o.id.slice(0, 8) : '';
+  const url = `${ctx.baseUrl}${p.ctaPath || (o ? `/admin/orders/${o.id}` : '/admin/dashboard')}`;
   const tone = TONES[p.tone];
   const clientLine = [ctx.client?.company_name, ctx.client?.full_name].filter(Boolean).join(' · ');
+  const contextLine = o ? `Order ${esc(no)}${o.product_type ? ` · ${esc(o.product_type)}` : ''}` : 'New client';
   const rows = [...(p.rows || []), ['Client', clientLine] as [string, string], ['Client email', ctx.client?.email || ''] as [string, string]].filter(
     ([, v]) => v
   );
@@ -93,7 +95,7 @@ function render(p: Parts, ctx: AdminEmailContext) {
 </td></tr>
 <tr><td bgcolor="#ffffff" style="border:1px solid #e5e5e5;border-top:0;border-radius:0 0 12px 12px;padding:28px 28px 26px">
 <span style="display:inline-block;padding:3px 10px;border-radius:99px;background:${tone.bg};color:${tone.fg};font:600 11px ${FONT};text-transform:uppercase;letter-spacing:.05em">${tone.label}</span>
-<div style="font:600 12px ${FONT};color:#737373;margin:14px 0 6px">Order ${esc(no)}${o.product_type ? ` · ${esc(o.product_type)}` : ''}</div>
+<div style="font:600 12px ${FONT};color:#737373;margin:14px 0 6px">${contextLine}</div>
 <div style="font:700 21px/1.3 ${FONT};color:#171717;margin-bottom:12px">${esc(p.heading)}</div>
 <div style="font:15px/1.6 ${FONT};color:#525252;margin-bottom:20px">${p.body}</div>
 ${hl}${quoteHtml}${rowsHtml}
@@ -103,7 +105,7 @@ ${hl}${quoteHtml}${rowsHtml}
 </table></td></tr></table></body></html>`;
 
   const text = [
-    `[${tone.label}] Order ${no}${o.product_type ? ` · ${o.product_type}` : ''}`,
+    `[${tone.label}] ${contextLine.replace(/<[^>]+>/g, '')}`,
     '',
     p.heading,
     '',
@@ -273,4 +275,25 @@ export function renderAdminEmail(event: AdminEmailEvent, ctx: AdminEmailContext)
       };
   }
   return render(p, ctx);
+}
+
+/** Email to admins when a new client creates an account. */
+export function renderAdminSignupEmail(ctx: {
+  client: { full_name?: string | null; company_name?: string | null; email?: string | null };
+  baseUrl: string;
+}) {
+  const name = ctx.client.full_name || ctx.client.email || 'A new client';
+  const company = ctx.client.company_name || name;
+  return render(
+    {
+      subject: `New client signup: ${company}`,
+      preheader: `${name} just created a Merchin account.`,
+      tone: 'signup',
+      heading: `${company} just signed up`,
+      body: `${esc(name)} created a client account. They still need to confirm their email before they can place orders — reach out to say hello.`,
+      cta: 'View clients',
+      ctaPath: '/admin/clients',
+    },
+    { client: ctx.client, baseUrl: ctx.baseUrl }
+  );
 }

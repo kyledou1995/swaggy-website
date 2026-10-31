@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Bell, Package, MessageSquare, Check, CheckCheck, X, CreditCard, FileText } from 'lucide-react';
+import { Bell, Package, MessageSquare, Check, CheckCheck, X, CreditCard, FileText, UserPlus } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { AppNotification } from '@/types';
 import Link from 'next/link';
@@ -111,6 +111,8 @@ export const AdminNotificationBell: React.FC<AdminNotificationBellProps> = ({ us
         return <Package className="w-4 h-4 text-green-400" />;
       case 'new_message':
         return <MessageSquare className="w-4 h-4 text-blue-400" />;
+      case 'new_signup':
+        return <UserPlus className="w-4 h-4 text-violet-400" />;
       default:
         return <Bell className="w-4 h-4 text-gray-400" />;
     }
@@ -122,6 +124,8 @@ export const AdminNotificationBell: React.FC<AdminNotificationBellProps> = ({ us
         return 'bg-green-900/50';
       case 'new_message':
         return 'bg-blue-900/50';
+      case 'new_signup':
+        return 'bg-violet-900/50';
       default:
         return 'bg-gray-800';
     }
@@ -217,6 +221,19 @@ export const AdminNotificationBell: React.FC<AdminNotificationBellProps> = ({ us
                           className="text-[10px] text-green-400 hover:text-green-300 font-medium"
                         >
                           View Order
+                        </Link>
+                      )}
+                      {!notif.order_id && notif.title.startsWith('New client signup') && (
+                        <Link
+                          href="/admin/clients"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!notif.is_read) markAsRead(notif.id);
+                            setIsOpen(false);
+                          }}
+                          className="text-[10px] text-green-400 hover:text-green-300 font-medium"
+                        >
+                          View Clients
                         </Link>
                       )}
                     </div>

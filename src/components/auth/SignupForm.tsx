@@ -40,6 +40,16 @@ export const SignupForm: React.FC = () => {
         return;
       }
 
+      // Let the Merchin team know (in-app + email). Fire-and-forget.
+      if (data.user?.id) {
+        fetch('/api/notifications/new-signup', {
+          method: 'POST',
+          keepalive: true,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: data.user.id }),
+        }).catch(() => {});
+      }
+
       // Show verification notice instead of redirecting
       if (data.user) {
         setShowVerification(true);

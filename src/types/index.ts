@@ -175,7 +175,7 @@ export interface DeliveryAddress {
   updated_at: string;
 }
 
-export type NotificationType = 'order_status' | 'new_message';
+export type NotificationType = 'order_status' | 'new_message' | 'new_signup';
 
 export interface AppNotification {
   id: string;
