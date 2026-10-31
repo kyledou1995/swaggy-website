@@ -18,6 +18,8 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
+  // Cancelled orders are archived: hidden from the active list, shown under "Archived"
+  const [view, setView] = useState<'active' | 'archived'>('active');
 
   useEffect(() => {
     const supabase = createClient();
@@ -36,20 +38,37 @@ export default function AdminOrdersPage() {
     loadData();
   }, []);
 
+  const activeCount = useMemo(() => orders.filter((o) => o.status !== 'cancelled').length, [orders]);
+  const archivedCount = orders.length - activeCount;
+
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
+      const inView = view === 'archived' ? order.status === 'cancelled' : order.status !== 'cancelled';
+      if (!inView) return false;
       const matchesSearch =
         (order.order_number || order.id).toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.product_description.toLowerCase().includes(searchQuery.toLowerCase());
+        (order.product_type || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (order.product_description || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [orders, searchQuery, statusFilter]);
+  }, [orders, searchQuery, statusFilter, view]);
 
   const statusOptions = [
     { value: 'all', label: 'All Statuses' },
-    ...Object.entries(ORDER_STATUS_LABELS).map(([value, label]) => ({ value, label })),
+    ...Object.entries(ORDER_STATUS_LABELS)
+      .filter(([value]) => value !== 'draft' && value !== 'cancelled')
+      .map(([value, label]) => ({ value, label })),
   ];
+
+  const badgeVariant = (status: string) =>
+    status === 'cancelled' || status === 'action_required'
+      ? 'error'
+      : status === 'delivered'
+        ? 'success'
+        : status === 'sample_approval_pending'
+          ? 'warning'
+          : 'info';
 
   return (
     <AdminLayout>
@@ -57,6 +76,28 @@ export default function AdminOrdersPage() {
         <div>
           <h1 className="text-4xl font-bold text-gray-900">All Orders</h1>
           <p className="text-gray-600 mt-2">Manage and monitor all client orders in one place.</p>
+        </div>
+
+        <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1" role="tablist">
+          {([
+            ['active', `Active (${activeCount})`],
+            ['archived', `Archived (${archivedCount})`],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={view === key}
+              onClick={() => {
+                setView(key);
+                setStatusFilter('all');
+              }}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                view === key ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         <Card>
@@ -69,6 +110,7 @@ export default function AdminOrdersPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
+              {view === 'active' && (
               <div className="md:w-64">
                 <Select
                   label="Filter by Status"
@@ -77,6 +119,7 @@ export default function AdminOrdersPage() {
                   onChange={(e) => setStatusFilter(e.target.value as OrderStatus | 'all')}
                 />
               </div>
+              )}
             </div>
           </CardBody>
         </Card>
@@ -85,8 +128,11 @@ export default function AdminOrdersPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">
-                Orders ({filteredOrders.length})
+                {view === 'archived' ? 'Archived orders' : 'Orders'} ({filteredOrders.length})
               </h2>
+              {view === 'archived' && (
+                <p className="text-sm text-gray-500">Cancelled orders are archived automatically.</p>
+              )}
             </div>
           </CardHeader>
           <CardBody className="p-0">
@@ -96,7 +142,11 @@ export default function AdminOrdersPage() {
               <div className="px-6 py-12 text-center">
                 <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500">
-                  {orders.length === 0 ? 'No orders have been placed yet.' : 'No orders found matching your criteria.'}
+                  {view === 'archived'
+                    ? 'No archived orders.'
+                    : orders.length === 0
+                      ? 'No orders have been placed yet.'
+                      : 'No orders found matching your criteria.'}
                 </p>
               </div>
             ) : (
@@ -131,14 +181,7 @@ export default function AdminOrdersPage() {
                           <span className="text-gray-900 font-medium">{order.quantity.toLocaleString()}</span>
                         </td>
                         <td className="px-6 py-4">
-                          <Badge
-                            variant={
-                              order.status === 'delivered' ? 'success'
-                                : order.status === 'action_required' ? 'error'
-                                : order.status === 'sample_approval_pending' ? 'warning'
-                                : 'info'
-                            }
-                          >
+                          <Badge variant={badgeVariant(order.status)}>
                             {ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS]}
                           </Badge>
                         </td>

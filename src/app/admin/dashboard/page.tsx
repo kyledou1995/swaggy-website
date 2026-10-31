@@ -230,7 +230,7 @@ export default function AdminDashboard() {
                               {new Date(order.created_at).toLocaleDateString()}
                             </p>
                           </div>
-                          <Badge variant={order.status === 'delivered' ? 'success' : order.status === 'action_required' ? 'error' : 'info'}>
+                          <Badge variant={order.status === 'delivered' ? 'success' : order.status === 'action_required' || order.status === 'cancelled' ? 'error' : 'info'}>
                             {ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS]}
                           </Badge>
                         </div>

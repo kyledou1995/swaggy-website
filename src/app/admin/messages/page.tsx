@@ -272,7 +272,7 @@ export default function AdminMessagesPage() {
                             <Badge
                               variant={
                                 thread.order.status === 'delivered' ? 'success' :
-                                thread.order.status === 'action_required' ? 'error' : 'info'
+                                thread.order.status === 'action_required' || thread.order.status === 'cancelled' ? 'error' : 'info'
                               }
                               className="text-[10px] px-1.5 py-0"
                             >
