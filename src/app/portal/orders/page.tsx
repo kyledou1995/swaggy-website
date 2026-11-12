@@ -207,8 +207,8 @@ export default function OrdersPage() {
               <Filter className="w-5 h-5 text-gray-600" />
               <h3 className="font-semibold text-gray-900">Filters</h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Input placeholder="Search orders..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <Input label="Search" placeholder="Order #, product, description…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               <Select options={statusOptions} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} label="Status" />
               <Select options={productOptions} value={productFilter} onChange={(e) => setProductFilter(e.target.value)} label="Product Type" />
             </div>
