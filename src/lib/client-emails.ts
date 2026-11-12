@@ -34,6 +34,8 @@ export interface ClientEmailContext {
   status?: OrderStatus | null;
   /** Amount for payment_request / refund when not derivable from the order. */
   amount?: number | null;
+  /** File URLs attached to a message. */
+  attachments?: string[] | null;
   baseUrl: string;
 }
 
@@ -41,6 +43,25 @@ const FONT = 'Inter,Helvetica,Arial,sans-serif';
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+/** Attachment links block for emails. */
+function attachmentsHtml(urls: string[] | null | undefined) {
+  const list = (urls || []).filter((u) => /^https:\/\//.test(u));
+  if (!list.length) return '';
+  const name = (u: string) => {
+    try {
+      return decodeURIComponent(new URL(u).pathname.split('/').pop() || 'file').replace(/^\d+-[a-z0-9]+-/, '');
+    } catch {
+      return 'file';
+    }
+  };
+  return `<div style="margin:0 0 22px"><div style="font:600 12px ${FONT};color:#737373;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Attachments (${list.length})</div>${list
+    .map(
+      (u) =>
+        `<a href="${u}" style="display:block;margin:0 0 6px;padding:10px 12px;border:1px solid #e5e5e5;border-radius:8px;font:500 13px ${FONT};color:#059669;text-decoration:none">&#128206; ${esc(name(u))}</a>`
+    )
+    .join('')}</div>`;
+}
+
 const money = (n: number | null | undefined) =>
   n == null ? '' : `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d: string | Date | null | undefined) => {
@@ -103,7 +124,7 @@ function render(p: Parts, ctx: ClientEmailContext) {
 <div style="font:600 12px ${FONT};color:#059669;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Order ${esc(orderNo(o))}${o.product_type ? ` · ${esc(o.product_type)}` : ''}</div>
 <div style="font:700 22px/1.3 ${FONT};color:#171717;margin-bottom:14px">${esc(p.heading)}</div>
 <div style="font:15px/1.6 ${FONT};color:#525252;margin-bottom:22px">${p.body}</div>
-${hl}${quoteHtml}${rowsHtml}
+${hl}${quoteHtml}${attachmentsHtml(ctx.attachments)}${rowsHtml}
 <table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#10b981" style="border-radius:8px"><a href="${url}" style="display:inline-block;padding:13px 26px;font:600 15px ${FONT};color:#ffffff;text-decoration:none;border-radius:8px">${esc(p.cta)}</a></td></tr></table>
 <div style="margin-top:26px;padding-top:18px;border-top:1px solid #f0f0f0;font:12.5px/1.5 ${FONT};color:#737373">${esc(footer)}</div>
 </td></tr>
@@ -334,9 +355,11 @@ export function renderClientEmail(event: ClientEmailEvent, ctx: ClientEmailConte
     case 'new_message':
       p = {
         subject: `New message from Merchin about ${no}`,
-        preheader: msg ? msg.slice(0, 90) : 'You have a new message.',
-        heading: 'You have a new message',
-        body: '<b>Merchin team</b> wrote:',
+        preheader: msg ? msg.slice(0, 90) : ctx.attachments?.length ? 'Merchin sent you files.' : 'You have a new message.',
+        heading: 'You have a new message from Merchin',
+        body: msg
+          ? `<b>Merchin team</b> wrote${ctx.attachments?.length ? ` and attached ${ctx.attachments.length} file${ctx.attachments.length === 1 ? '' : 's'}` : ''}:`
+          : `<b>Merchin team</b> sent you ${ctx.attachments?.length || 0} file${ctx.attachments?.length === 1 ? '' : 's'}.`,
         quote: msg,
         cta: 'Reply in your portal',
         ctaPath: '/portal/messages',

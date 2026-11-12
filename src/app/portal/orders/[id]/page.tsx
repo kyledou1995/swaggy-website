@@ -14,6 +14,7 @@ import { Celebration } from '@/components/ui/Celebration';
 import { Skeleton } from '@/components/ui/Animated';
 import { ShipmentTracker } from '@/components/portal/ShipmentTracker';
 import { InfoRequestsCard } from '@/components/portal/InfoRequestsCard';
+import { AttachButton, AttachmentList, PendingAttachments, useMessageAttachments } from '@/components/ui/MessageAttachments';
 import { createClient } from '@/lib/supabase';
 import { ORDER_STATUS_LABELS, ORDER_TIMELINE } from '@/lib/constants';
 import { notifyAdmins } from '@/lib/notifications';
@@ -63,6 +64,8 @@ export default function OrderDetailPage() {
   const [celebration, setCelebration] = useState<{ title: string; message: string } | null>(null);
   const closeCelebration = useCallback(() => setCelebration(null), []);
   const messagesBoxRef = useRef<HTMLDivElement>(null);
+  const msgAttachments = useMessageAttachments();
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   // Show a one-time celebration for a milestone (remembered per browser).
   const celebrateOnce = useCallback((key: string, title: string, message: string) => {
@@ -263,44 +266,52 @@ export default function OrderDetailPage() {
   });
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !user) return;
+    if ((!newMessage.trim() && msgAttachments.files.length === 0) || !user) return;
+    setSendingMessage(true);
+    msgAttachments.setError('');
+    try {
+      const supabase = createClient();
+      const text = newMessage.trim();
+      const attachmentUrls = msgAttachments.files.length ? await msgAttachments.uploadAll(user.id, orderId) : [];
 
-    const supabase = createClient();
-    const newMsg: OrderMessage = {
-      id: `msg_${Date.now()}`,
-      order_id: orderId,
-      sender_id: user.id,
-      sender_role: 'client',
-      message: newMessage,
-      attachments: [],
-      created_at: new Date().toISOString(),
-    };
+      const { error } = await supabase.from('order_messages').insert([{
+        order_id: orderId,
+        sender_id: user.id,
+        sender_role: 'client',
+        message: text,
+        attachments: attachmentUrls,
+      }]);
+      if (error) throw error;
 
-    const { error } = await supabase.from('order_messages').insert([{
-      order_id: orderId,
-      sender_id: user.id,
-      sender_role: 'client',
-      message: newMessage,
-      attachments: [],
-    }]);
+      setAllMessages([...allMessages, {
+        id: `msg_${Date.now()}`,
+        order_id: orderId,
+        sender_id: user.id,
+        sender_role: 'client',
+        message: text,
+        attachments: attachmentUrls,
+        created_at: new Date().toISOString(),
+      }]);
+      setNewMessage('');
+      msgAttachments.clear();
 
-    if (error) {
-      console.error('Error sending message:', error);
-      return;
+      // Notify admins (in-app + email)
+      await notifyAdmins({
+        email: { event: 'new_message', message: text, attachments: attachmentUrls },
+        orderId,
+        type: 'new_message',
+        title: `New message from ${user.full_name}`,
+        body: text
+          ? text.length > 100 ? text.slice(0, 100) + '...' : text
+          : `Sent ${attachmentUrls.length} attachment${attachmentUrls.length === 1 ? '' : 's'}`,
+        supabaseClient: supabase,
+      });
+    } catch (err) {
+      console.error('Error sending message:', err);
+      msgAttachments.setError(err instanceof Error ? err.message : 'Failed to send message.');
+    } finally {
+      setSendingMessage(false);
     }
-
-    setAllMessages([...allMessages, newMsg]);
-    setNewMessage('');
-
-    // Notify admins
-    await notifyAdmins({
-      email: { event: 'new_message', message: newMessage },
-      orderId,
-      type: 'new_message',
-      title: `New message from ${user.full_name}`,
-      body: newMessage.length > 100 ? newMessage.slice(0, 100) + '...' : newMessage,
-      supabaseClient: supabase,
-    });
   };
 
   const handleApproval = async (approved: boolean) => {
@@ -1810,7 +1821,8 @@ export default function OrderDetailPage() {
                             : 'bg-green-100 text-gray-900'
                         }`}
                       >
-                        <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                        {msg.message && <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>}
+                        <AttachmentList urls={msg.attachments} />
                       </div>
                       <p className="text-xs text-gray-500 mt-1 px-3">
                         {new Date(msg.created_at).toLocaleString()}
@@ -1830,16 +1842,16 @@ export default function OrderDetailPage() {
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
               />
+              <PendingAttachments files={msgAttachments.files} onRemove={msgAttachments.remove} />
+              {msgAttachments.error && <p className="text-xs text-red-600">{msgAttachments.error}</p>}
               <div className="flex gap-3">
-                <Button variant="ghost" size="sm">
-                  <Paperclip className="w-4 h-4 mr-2" />
-                  Attach File
-                </Button>
+                <AttachButton onFiles={msgAttachments.add} disabled={sendingMessage} label="Attach file" />
                 <div className="flex-1" />
                 <Button
                   variant="primary"
                   size="sm"
-                  disabled={!newMessage.trim()}
+                  disabled={(!newMessage.trim() && msgAttachments.files.length === 0) || sendingMessage}
+                  isLoading={sendingMessage}
                   onClick={handleSendMessage}
                 >
                   <Send className="w-4 h-4 mr-2" />

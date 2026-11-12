@@ -18,6 +18,7 @@ import {
   PRODUCT_TYPES,
 } from '@/lib/constants';
 import { OrderStatus, Order, OrderUpdate, OrderMessage, OrderSpecification, User } from '@/types';
+import { AttachButton, AttachmentList, PendingAttachments, useMessageAttachments } from '@/components/ui/MessageAttachments';
 import { InfoRequestsPanel } from '@/components/admin/InfoRequestsPanel';
 import { notifyOrgMembers } from '@/lib/notifications';
 import Link from 'next/link';
@@ -41,6 +42,7 @@ export default function AdminOrderDetailPage() {
   const [client, setClient] = useState<User | null>(null);
   const [adminUser, setAdminUser] = useState<{ id: string } | null>(null);
   const [infoRequestsKey, setInfoRequestsKey] = useState(0);
+  const msgAttachments = useMessageAttachments();
 
   // Sample approval form state
   const [showSampleForm, setShowSampleForm] = useState(false);
@@ -413,20 +415,24 @@ export default function AdminOrderDetailPage() {
   };
 
   const handleSendMessage = async () => {
-    if (!messageText.trim()) return;
+    if (!messageText.trim() && msgAttachments.files.length === 0) return;
 
     setIsLoadingMessage(true);
     setMessageFeedback(null);
 
     try {
       const supabase = createClient();
+      const text = messageText.trim();
+      const attachmentUrls = msgAttachments.files.length
+        ? await msgAttachments.uploadAll(adminUser?.id || 'admin', orderId)
+        : [];
 
       const { error } = await supabase.from('order_messages').insert([{
         order_id: orderId,
         sender_id: adminUser?.id,
         sender_role: 'admin',
-        message: messageText,
-        attachments: [],
+        message: text,
+        attachments: attachmentUrls,
       }]);
 
       if (error) throw error;
@@ -437,22 +443,26 @@ export default function AdminOrderDetailPage() {
         order_id: orderId,
         sender_id: adminUser?.id || '',
         sender_role: 'admin',
-        message: messageText,
-        attachments: [],
+        message: text,
+        attachments: attachmentUrls,
         created_at: new Date().toISOString(),
       };
       setMessages([...messages, newMsg]);
       setMessageText('');
+      msgAttachments.clear();
 
+      const preview = text
+        ? text.length > 100 ? text.slice(0, 100) + '...' : text
+        : `Sent ${attachmentUrls.length} attachment${attachmentUrls.length === 1 ? '' : 's'}`;
       // Send notification for new message
       if (order?.client_id) {
         await notifyOrgMembers({
-          email: { event: 'new_message', message: messageText },
+          email: { event: 'new_message', message: text, attachments: attachmentUrls },
           orderId,
           clientId: order.client_id,
           type: 'new_message',
-          title: `New message on Order #${order.order_number || orderId.slice(0, 8)}`,
-          body: messageText.length > 100 ? messageText.slice(0, 100) + '...' : messageText,
+          title: `New message from Merchin — Order #${order.order_number || orderId.slice(0, 8)}`,
+          body: preview,
           supabaseClient: supabase,
         });
       }
@@ -2625,20 +2635,8 @@ export default function AdminOrderDetailPage() {
                         }`}>
                           {isAdmin ? 'Admin' : 'Client'}
                         </p>
-                        <p className="text-sm">{message.message}</p>
-                        {message.attachments.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-opacity-20 border-current">
-                            {message.attachments.map((attachment) => (
-                              <div
-                                key={attachment}
-                                className="flex items-center gap-1 text-xs mt-1"
-                              >
-                                <FileText size={14} />
-                                {attachment}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        {message.message && <p className="text-sm whitespace-pre-wrap break-words">{message.message}</p>}
+                        <AttachmentList urls={message.attachments} dark={isAdmin} />
                         <p className={`text-xs mt-2 ${
                           isAdmin ? 'text-green-100' : 'text-gray-500'
                         }`}>
@@ -2657,22 +2655,37 @@ export default function AdminOrderDetailPage() {
           </CardBody>
 
           {/* Message Input */}
-          <CardFooter className="flex gap-3">
-            <Textarea
-              placeholder="Send a message to the client..."
-              value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
-              rows={2}
-            />
-            <Button
-              variant="primary"
-              onClick={handleSendMessage}
-              isLoading={isLoadingMessage}
-              className="flex-shrink-0"
-              disabled={!messageText.trim()}
+          <CardFooter>
+            <div
+              className="w-full space-y-2"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                msgAttachments.add(e.dataTransfer.files);
+              }}
             >
-              <Send size={18} />
-            </Button>
+              <PendingAttachments files={msgAttachments.files} onRemove={msgAttachments.remove} />
+              {msgAttachments.error && <p className="text-xs text-red-600">{msgAttachments.error}</p>}
+              <div className="flex gap-3 items-end">
+                <Textarea
+                  placeholder="Send a message to the client... (drag files here to attach)"
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  rows={2}
+                />
+                <AttachButton onFiles={msgAttachments.add} disabled={isLoadingMessage} className="flex-shrink-0 h-10" />
+                <Button
+                  variant="primary"
+                  onClick={handleSendMessage}
+                  isLoading={isLoadingMessage}
+                  className="flex-shrink-0"
+                  disabled={!messageText.trim() && msgAttachments.files.length === 0}
+                >
+                  <Send size={18} />
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500">The client gets an email and a portal notification for every message.</p>
+            </div>
           </CardFooter>
         </Card>
       </div>

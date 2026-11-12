@@ -26,6 +26,7 @@ interface Body {
   message?: string | null;
   status?: OrderStatus | null;
   amount?: number | null;
+  attachments?: string[] | null;
 }
 
 async function callerBelongsToOrder(admin: SupabaseClient, orderId: string, userId: string, callerOrg?: string | null) {
@@ -55,6 +56,9 @@ export async function POST(request: NextRequest) {
   const { data: caller } = await admin.from('profiles').select('role, organization_id').eq('id', user.id).single();
   const isAdmin = caller?.role === 'admin';
   const amount = typeof body.amount === 'number' ? body.amount : null;
+  const attachments = Array.isArray(body.attachments)
+    ? body.attachments.filter((u) => typeof u === 'string' && /^https:\/\//.test(u)).slice(0, 20)
+    : null;
 
   // ── Emails to the Merchin team ──
   if (body.audience === 'admin') {
@@ -68,6 +72,7 @@ export async function POST(request: NextRequest) {
       event,
       message: body.message ?? null,
       amount,
+      attachments,
       actorId: user.id,
     });
     return NextResponse.json(result);
@@ -87,6 +92,7 @@ export async function POST(request: NextRequest) {
     message: body.message ?? null,
     status: body.status ?? null,
     amount,
+    attachments,
   });
   return NextResponse.json(result);
 }

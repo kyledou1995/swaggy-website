@@ -14,6 +14,7 @@ export interface OrderEmailRequest {
   message?: string | null;
   status?: OrderStatus | null;
   amount?: number | null;
+  attachments?: string[] | null;
 }
 
 const BASE_URL = (process.env.NEXT_PUBLIC_BASE_URL || 'https://www.merchin.co').replace(/\/$/, '');
@@ -51,6 +52,7 @@ export async function sendOrderEmail(admin: SupabaseClient, req: OrderEmailReque
       message: req.message,
       status: req.status,
       amount: req.amount,
+      attachments: req.attachments,
       baseUrl: BASE_URL,
     });
     const res = await sendEmail({ to: m.email, ...email, replyTo: null });
@@ -71,6 +73,7 @@ export interface AdminOrderEmailRequest {
   amount?: number | null;
   /** Profile id of the client who took the action (for "who did it"). */
   actorId?: string | null;
+  attachments?: string[] | null;
 }
 
 export async function sendAdminOrderEmail(admin: SupabaseClient, req: AdminOrderEmailRequest) {
@@ -97,6 +100,7 @@ export async function sendAdminOrderEmail(admin: SupabaseClient, req: AdminOrder
     actorName,
     message: req.message,
     amount: req.amount,
+    attachments: req.attachments,
     baseUrl: BASE_URL,
   });
 

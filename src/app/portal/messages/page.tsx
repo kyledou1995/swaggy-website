@@ -13,6 +13,7 @@ import { notifyAdmins } from '@/lib/notifications';
 import { Order, OrderMessage, User } from '@/types';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/Animated';
+import { AttachButton, AttachmentList, PendingAttachments, useMessageAttachments } from '@/components/ui/MessageAttachments';
 
 interface ConversationThread {
   order: Order;
@@ -33,6 +34,7 @@ export default function PortalMessagesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   // On phones, show either the conversation list or the open chat
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+  const msgAttachments = useMessageAttachments();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -166,19 +168,24 @@ export default function PortalMessagesPage() {
   }, [selectedThread?.messages]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedThread || !user) return;
+    if ((!newMessage.trim() && msgAttachments.files.length === 0) || !selectedThread || !user) return;
 
     setIsSending(true);
+    msgAttachments.setError('');
     try {
       const supabase = createClient();
+      const text = newMessage.trim();
+      const attachmentUrls = msgAttachments.files.length
+        ? await msgAttachments.uploadAll(user.id, selectedThread.order.id)
+        : [];
 
       const { error } = await supabase.from('order_messages').insert([{
         order_id: selectedThread.order.id,
         sender_id: user.id,
         sender_role: 'client',
         sender_name: user.full_name,
-        message: newMessage.trim(),
-        attachments: [],
+        message: text,
+        attachments: attachmentUrls,
       }]);
 
       if (error) throw error;
@@ -190,8 +197,8 @@ export default function PortalMessagesPage() {
         sender_id: user.id,
         sender_role: 'client',
         sender_name: user.full_name,
-        message: newMessage.trim(),
-        attachments: [],
+        message: text,
+        attachments: attachmentUrls,
         created_at: new Date().toISOString(),
       };
 
@@ -206,18 +213,22 @@ export default function PortalMessagesPage() {
         t.order.id === selectedThread.order.id ? updatedThread : t
       ));
       setNewMessage('');
+      msgAttachments.clear();
 
       // Notify admins about the new message
       await notifyAdmins({
-        email: { event: 'new_message', message: newMessage.trim() },
+        email: { event: 'new_message', message: text, attachments: attachmentUrls },
         orderId: selectedThread.order.id,
         type: 'new_message',
         title: `New message from ${user.full_name}`,
-        body: newMessage.trim().length > 100 ? newMessage.trim().slice(0, 100) + '...' : newMessage.trim(),
+        body: text
+          ? text.length > 100 ? text.slice(0, 100) + '...' : text
+          : `Sent ${attachmentUrls.length} attachment${attachmentUrls.length === 1 ? '' : 's'}`,
         supabaseClient: supabase,
       });
     } catch (error) {
       console.error('Error sending message:', error);
+      msgAttachments.setError(error instanceof Error ? error.message : 'Failed to send message.');
     } finally {
       setIsSending(false);
     }
@@ -364,7 +375,7 @@ export default function PortalMessagesPage() {
                         {thread.lastMessage ? (
                           <p className={`text-xs mt-1 truncate ${hasUnread ? 'text-gray-700 font-semibold' : 'text-gray-400'}`}>
                             {thread.lastMessage.sender_role === 'client' ? 'You: ' : 'Merchin: '}
-                            {thread.lastMessage.message}
+                            {thread.lastMessage.message || 'Sent an attachment'}
                           </p>
                         ) : (
                           <p className="text-xs text-gray-300 mt-1 italic">No messages yet</p>
@@ -459,7 +470,8 @@ export default function PortalMessagesPage() {
                             }`}>
                               {isClient ? (msg.sender_id === user?.id ? 'You' : (msg.sender_name || 'Teammate')) : 'Merchin Team'}
                             </p>
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
+                            {msg.message && <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>}
+                            <AttachmentList urls={msg.attachments} dark={isClient} />
                             <p className={`text-[10px] mt-2 ${
                               isClient ? 'text-green-200' : 'text-gray-400'
                             }`}>
@@ -479,8 +491,11 @@ export default function PortalMessagesPage() {
                 </div>
 
                 {/* Message Input */}
-                <div className="px-3 sm:px-6 py-3 sm:py-4 border-t border-gray-200 bg-white">
+                <div className="px-3 sm:px-6 py-3 sm:py-4 border-t border-gray-200 bg-white space-y-2">
+                  <PendingAttachments files={msgAttachments.files} onRemove={msgAttachments.remove} />
+                  {msgAttachments.error && <p className="text-xs text-red-600">{msgAttachments.error}</p>}
                   <div className="flex gap-2 sm:gap-3">
+                    <AttachButton onFiles={msgAttachments.add} disabled={isSending} className="flex-shrink-0" />
                     <input
                       type="text"
                       placeholder="Type a message..."
@@ -497,7 +512,7 @@ export default function PortalMessagesPage() {
                     <Button
                       variant="primary"
                       onClick={handleSendMessage}
-                      disabled={!newMessage.trim() || isSending}
+                      disabled={(!newMessage.trim() && msgAttachments.files.length === 0) || isSending}
                       isLoading={isSending}
                     >
                       <Send className="w-4 h-4" />

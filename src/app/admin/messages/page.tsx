@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase';
 import { Order, OrderMessage, User } from '@/types';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
 import { notifyOrgMembers } from '@/lib/notifications';
+import { AttachButton, AttachmentList, PendingAttachments, useMessageAttachments } from '@/components/ui/MessageAttachments';
 
 interface ConversationThread {
   order: Order;
@@ -28,6 +29,8 @@ export default function AdminMessagesPage() {
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const msgAttachments = useMessageAttachments();
+  const [sendError, setSendError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -126,19 +129,24 @@ export default function AdminMessagesPage() {
   }, [selectedThread?.messages]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedThread || !adminUser) return;
+    if ((!newMessage.trim() && msgAttachments.files.length === 0) || !selectedThread || !adminUser) return;
 
     setIsSending(true);
+    setSendError('');
     try {
       const supabase = createClient();
+      const text = newMessage.trim();
+      const attachmentUrls = msgAttachments.files.length
+        ? await msgAttachments.uploadAll(adminUser.id, selectedThread.order.id)
+        : [];
 
       const { error } = await supabase.from('order_messages').insert([{
         order_id: selectedThread.order.id,
         sender_id: adminUser.id,
         sender_role: 'admin',
         sender_name: 'Merchin Team',
-        message: newMessage.trim(),
-        attachments: [],
+        message: text,
+        attachments: attachmentUrls,
       }]);
 
       if (error) throw error;
@@ -149,8 +157,8 @@ export default function AdminMessagesPage() {
         sender_id: adminUser.id,
         sender_role: 'admin',
         sender_name: 'Merchin Team',
-        message: newMessage.trim(),
-        attachments: [],
+        message: text,
+        attachments: attachmentUrls,
         created_at: new Date().toISOString(),
       };
 
@@ -165,6 +173,7 @@ export default function AdminMessagesPage() {
         t.order.id === selectedThread.order.id ? updatedThread : t
       ));
       setNewMessage('');
+      msgAttachments.clear();
 
       // Send notification to client (pass authenticated supabase client)
       if (selectedThread.order.client_id) {
@@ -172,14 +181,17 @@ export default function AdminMessagesPage() {
           orderId: selectedThread.order.id,
           clientId: selectedThread.order.client_id,
           type: 'new_message',
-          title: `New message on Order #${selectedThread.order.order_number || selectedThread.order.id.slice(0, 8)}`,
-          body: newMessage.trim().length > 100 ? newMessage.trim().slice(0, 100) + '...' : newMessage.trim(),
+          title: `New message from Merchin — Order #${selectedThread.order.order_number || selectedThread.order.id.slice(0, 8)}`,
+          body: text
+            ? text.length > 100 ? text.slice(0, 100) + '...' : text
+            : `Sent ${attachmentUrls.length} attachment${attachmentUrls.length === 1 ? '' : 's'}`,
           supabaseClient: supabase,
-          email: { event: 'new_message', message: newMessage.trim() },
+          email: { event: 'new_message', message: text, attachments: attachmentUrls },
         });
       }
     } catch (error) {
       console.error('Error sending message:', error);
+      setSendError(error instanceof Error ? error.message : 'Failed to send message.');
     } finally {
       setIsSending(false);
     }
@@ -286,7 +298,7 @@ export default function AdminMessagesPage() {
                           {thread.lastMessage ? (
                             <p className="text-xs text-gray-400 mt-1 truncate">
                               {thread.lastMessage.sender_role === 'admin' ? 'You: ' : 'Client: '}
-                              {thread.lastMessage.message}
+                              {thread.lastMessage.message || 'Sent an attachment'}
                             </p>
                           ) : (
                             <p className="text-xs text-gray-300 mt-1 italic">No messages yet</p>
@@ -367,7 +379,8 @@ export default function AdminMessagesPage() {
                               }`}>
                                 {isAdmin ? 'You' : (msg.sender_name || selectedThread.client?.full_name || 'Client')}
                               </p>
-                              <p className="text-sm leading-relaxed">{msg.message}</p>
+                              {msg.message && <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>}
+                              <AttachmentList urls={msg.attachments} dark={msg.sender_role === 'admin'} />
                               <p className={`text-[10px] mt-2 ${
                                 isAdmin ? 'text-green-200' : 'text-gray-400'
                               }`}>
@@ -387,8 +400,20 @@ export default function AdminMessagesPage() {
                   </div>
 
                   {/* Input */}
-                  <div className="px-6 py-4 border-t border-gray-200 bg-white">
+                  <div
+                    className="px-6 py-4 border-t border-gray-200 bg-white space-y-2"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      msgAttachments.add(e.dataTransfer.files);
+                    }}
+                  >
+                    <PendingAttachments files={msgAttachments.files} onRemove={msgAttachments.remove} />
+                    {(msgAttachments.error || sendError) && (
+                      <p className="text-xs text-red-600">{msgAttachments.error || sendError}</p>
+                    )}
                     <div className="flex gap-3">
+                      <AttachButton onFiles={msgAttachments.add} disabled={isSending} className="flex-shrink-0" />
                       <input
                         type="text"
                         placeholder="Reply to client..."
@@ -405,7 +430,7 @@ export default function AdminMessagesPage() {
                       <Button
                         variant="primary"
                         onClick={handleSendMessage}
-                        disabled={!newMessage.trim() || isSending}
+                        disabled={(!newMessage.trim() && msgAttachments.files.length === 0) || isSending}
                         isLoading={isSending}
                       >
                         <Send className="w-4 h-4" />

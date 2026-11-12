@@ -7,12 +7,14 @@ import type { AdminEmailEvent } from '@/lib/admin-emails';
 export interface AdminEmailOptions {
   event: AdminEmailEvent;
   amount?: number;
+  attachments?: string[];
   /** Defaults to the notification body. */
   message?: string;
 }
 
 export interface OrderEmailOptions {
   event: ClientEmailEvent;
+  attachments?: string[];
   status?: string;
   amount?: number;
   /** Defaults to the notification body. */
