@@ -10,6 +10,7 @@ import {
   Save,
   AlertCircle,
   CheckCircle,
+  Clock,
 } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -30,6 +31,8 @@ export default function NotificationPreferencesPage() {
   const [notifyNewMessage, setNotifyNewMessage] = useState(true);
   const [emailOrderStatus, setEmailOrderStatus] = useState(true);
   const [emailNewMessage, setEmailNewMessage] = useState(true);
+  const [emailReminders, setEmailReminders] = useState(true);
+  const [hasReminderColumn, setHasReminderColumn] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
@@ -61,6 +64,8 @@ export default function NotificationPreferencesPage() {
         setNotifyNewMessage(profile.notify_new_message !== false);
         setEmailOrderStatus(profile.email_order_status !== false);
         setEmailNewMessage(profile.email_new_message !== false);
+        setEmailReminders(profile.email_reminders !== false);
+        setHasReminderColumn('email_reminders' in profile);
       }
 
       setLoading(false);
@@ -86,6 +91,7 @@ export default function NotificationPreferencesPage() {
           notify_new_message: notifyNewMessage,
           email_order_status: emailOrderStatus,
           email_new_message: emailNewMessage,
+          ...(hasReminderColumn ? { email_reminders: emailReminders } : {}),
         })
         .eq('id', user.id);
 
@@ -247,6 +253,49 @@ export default function NotificationPreferencesPage() {
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                       emailNewMessage ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </label>
+            </div>
+          </CardBody>
+        </Card>
+
+        {/* Reminder emails */}
+        <Card>
+          <CardBody>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                <Clock className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Reminders</h3>
+                <p className="text-sm text-gray-500">Friendly follow-ups when an order is waiting on you</p>
+              </div>
+            </div>
+            <div className="space-y-4 ml-13">
+              <label className="flex items-center justify-between cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <Mail className="w-4 h-4 text-gray-400" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">Reminder emails</span>
+                    <p className="text-xs text-gray-400">
+                      If something needs your action, like a quote, payment, or sample approval, we remind you after 24 hours, on day 3, and on day 7. Weekdays only.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={emailReminders}
+                  onClick={() => setEmailReminders(!emailReminders)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 ml-4 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                    emailReminders ? 'bg-green-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      emailReminders ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   />
                 </button>

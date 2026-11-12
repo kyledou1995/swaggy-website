@@ -11,8 +11,7 @@ import {
   Building2,
   BookOpen,
   ChevronDown,
-  LogOut,
-} from 'lucide-react';
+  LogOut, BellRing } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { AdminNotificationBell } from '@/components/admin/AdminNotificationBell';
 import { createClient } from '@/lib/supabase';
@@ -95,6 +94,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       label: 'Messages',
       href: '/admin/messages',
       icon: MessageSquare,
+    },
+    {
+      label: 'Reminders',
+      href: '/admin/reminders',
+      icon: BellRing,
     },
     {
       label: 'Users',
