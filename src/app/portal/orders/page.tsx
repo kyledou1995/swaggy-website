@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { byLastActivity, fetchLastActivity, updatedAgo } from '@/lib/order-activity';
 import { DDPTerm } from '@/components/ui/DDPTerm';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -79,24 +80,7 @@ export default function OrdersPage() {
       setOrders(list);
 
       // Most recent activity per order (status updates + messages + order edits)
-      const ids = list.map((o) => o.id);
-      const latest: Record<string, string> = {};
-      const bump = (id: string, at?: string | null) => {
-        if (at && (!latest[id] || at > latest[id])) latest[id] = at;
-      };
-      list.forEach((o) => {
-        bump(o.id, o.updated_at ? new Date(o.updated_at).toISOString() : null);
-        bump(o.id, new Date(o.created_at).toISOString());
-      });
-      if (ids.length) {
-        const [upd, msgs] = await Promise.all([
-          supabase.from('order_updates').select('order_id, created_at').in('order_id', ids),
-          supabase.from('order_messages').select('order_id, created_at').in('order_id', ids),
-        ]);
-        [...(upd.data || []), ...(msgs.data || [])].forEach((r: { order_id: string; created_at: string }) =>
-          bump(r.order_id, new Date(r.created_at).toISOString())
-        );
-      }
+      const latest = await fetchLastActivity(supabase, list);
       setLastActivity(latest);
       setLoading(false);
     }
@@ -124,18 +108,9 @@ export default function OrdersPage() {
         return matchesSearch && matchesStatus && matchesProduct;
       })
       // Most recently updated first
-      .sort((a, b) => (lastActivity[b.id] || b.created_at).localeCompare(lastActivity[a.id] || a.created_at));
+      .sort(byLastActivity(lastActivity));
   }, [orders, searchTerm, statusFilter, productFilter, tab, lastActivity]);
 
-  const updatedAgo = (iso?: string) => {
-    if (!iso) return '';
-    const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-    if (s < 60) return 'just now';
-    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-    const d = Math.floor(s / 86400);
-    return d === 1 ? 'yesterday' : d < 30 ? `${d} days ago` : new Date(iso).toLocaleDateString();
-  };
 
   const statusOptions = [
     { value: '', label: 'All Statuses' },

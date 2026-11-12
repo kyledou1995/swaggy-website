@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
+import { byLastActivity, fetchLastActivity, updatedAgo } from '@/lib/order-activity';
 import { Package } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
@@ -21,6 +22,8 @@ export default function AdminOrdersPage() {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
   // Cancelled orders are archived: hidden from the active list, shown under "Archived"
   const [view, setView] = useState<'active' | 'archived'>('active');
+  /** Latest activity per order: status updates, messages, or edits to the order. */
+  const [lastActivity, setLastActivity] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const supabase = createClient();
@@ -33,6 +36,10 @@ export default function AdminOrdersPage() {
         .order('created_at', { ascending: false });
 
       setOrders(allOrders || []);
+
+      // Most recent activity per order (status updates + messages + order edits)
+      const latest = await fetchLastActivity(supabase, (allOrders || []) as Order[]);
+      setLastActivity(latest);
 
       // Client company names for the Company column
       const clientIds = [...new Set((allOrders || []).map((o: Order) => o.client_id).filter(Boolean))];
@@ -66,8 +73,11 @@ export default function AdminOrdersPage() {
         (order.product_description || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
       return matchesSearch && matchesStatus;
-    });
-  }, [orders, clients, searchQuery, statusFilter, view]);
+    })
+      // Most recently updated first
+      .sort(byLastActivity(lastActivity));
+  }, [orders, clients, searchQuery, statusFilter, view, lastActivity]);
+
 
   const statusOptions = [
     { value: 'all', label: 'All Statuses' },
@@ -174,6 +184,7 @@ export default function AdminOrdersPage() {
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Product</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Qty</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Last Update</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Created</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -206,6 +217,9 @@ export default function AdminOrdersPage() {
                           <Badge variant={badgeVariant(order.status)}>
                             {ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS]}
                           </Badge>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap" title={lastActivity[order.id] ? new Date(lastActivity[order.id]).toLocaleString() : undefined}>
+                          {updatedAgo(lastActivity[order.id])}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
                           {new Date(order.created_at).toLocaleDateString()}

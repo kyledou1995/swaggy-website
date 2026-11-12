@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useEffect, useState } from 'react';
+import { byLastActivity, fetchLastActivity, updatedAgo } from '@/lib/order-activity';
 import { TrendingUp, AlertCircle, Users, DollarSign, Package } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
@@ -14,6 +15,7 @@ import Link from 'next/link';
 export default function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastActivity, setLastActivity] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const supabase = createClient();
@@ -26,6 +28,7 @@ export default function AdminDashboard() {
         .order('created_at', { ascending: false });
 
       setOrders(allOrders || []);
+      setLastActivity(await fetchLastActivity(supabase, (allOrders || []) as Order[]));
       setLoading(false);
     }
 
@@ -219,7 +222,11 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardBody>
                   <div className="space-y-4">
-                    {orders.slice(0, 5).map((order) => (
+                    {orders
+                      .filter((o) => o.status !== 'cancelled')
+                      .sort(byLastActivity(lastActivity))
+                      .slice(0, 5)
+                      .map((order) => (
                       <div key={order.id} className="border-l-2 border-green-500 pl-4">
                         <div className="flex items-start justify-between">
                           <div>
@@ -227,7 +234,7 @@ export default function AdminDashboard() {
                               {order.order_number || order.id.substring(0, 8)} — {order.product_type}
                             </p>
                             <p className="text-xs text-gray-500 mt-1">
-                              {new Date(order.created_at).toLocaleDateString()}
+                              Updated {updatedAgo(lastActivity[order.id])}
                             </p>
                           </div>
                           <Badge variant={order.status === 'delivered' ? 'success' : order.status === 'action_required' || order.status === 'cancelled' ? 'error' : 'info'}>

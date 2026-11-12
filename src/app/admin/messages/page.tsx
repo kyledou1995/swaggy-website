@@ -32,6 +32,7 @@ export default function AdminMessagesPage() {
   const msgAttachments = useMessageAttachments();
   const [sendError, setSendError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [tab, setTab] = useState<'active' | 'archived'>('active');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -111,8 +112,11 @@ export default function AdminMessagesPage() {
         setThreads(conversationThreads);
 
         if (conversationThreads.length > 0) {
-          const firstWithMessages = conversationThreads.find(t => t.messages.length > 0);
-          setSelectedThread(firstWithMessages || conversationThreads[0]);
+          const active = conversationThreads.filter(t => t.order.status !== 'cancelled');
+          const pool = active.length ? active : conversationThreads;
+          if (!active.length) setTab('archived');
+          const firstWithMessages = pool.find(t => t.messages.length > 0);
+          setSelectedThread(firstWithMessages || pool[0]);
         }
       } catch (error) {
         console.error('Error fetching messages:', error);
@@ -197,7 +201,14 @@ export default function AdminMessagesPage() {
     }
   };
 
-  const filteredThreads = threads.filter(t => {
+  const activeThreads = threads.filter(t => t.order.status !== 'cancelled');
+  const archivedThreads = threads.filter(t => t.order.status === 'cancelled');
+  const statusVariant = (status: string) =>
+    status === 'cancelled' || status === 'action_required' ? 'error'
+      : status === 'delivered' || status === 'sample_approved' ? 'success'
+        : status === 'sample_approval_pending' ? 'warning' : 'info';
+
+  const filteredThreads = (tab === 'archived' ? archivedThreads : activeThreads).filter(t => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -257,6 +268,23 @@ export default function AdminMessagesPage() {
                     className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
+                <div className="flex gap-1 mt-3 p-1 bg-gray-100 rounded-lg">
+                  {([
+                    ['active', 'Active', activeThreads.length],
+                    ['archived', 'Archived', archivedThreads.length],
+                  ] as const).map(([key, label, count]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setTab(key)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-semibold transition-colors ${
+                        tab === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                      }`}
+                    >
+                      {label} <span className="text-gray-400 font-medium">{count}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Thread List */}
@@ -264,7 +292,10 @@ export default function AdminMessagesPage() {
                 {filteredThreads.length === 0 ? (
                   <div className="p-6 text-center">
                     <Users className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                    <p className="text-sm text-gray-500">No conversations found</p>
+                    <p className="text-sm text-gray-500">
+                      {searchQuery ? 'No matching conversations' : tab === 'archived' ? 'No archived conversations' : 'No active conversations'}
+                    </p>
+                    {tab === 'archived' && !searchQuery && <p className="text-xs text-gray-400 mt-1">Conversations for cancelled orders appear here.</p>}
                   </div>
                 ) : (
                   filteredThreads.map((thread) => (
@@ -278,15 +309,12 @@ export default function AdminMessagesPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-gray-900 truncate">
+                            <p className="text-sm font-semibold text-gray-900 shrink-0">
                               {thread.order.order_number || thread.order.id.slice(0, 8)}
                             </p>
                             <Badge
-                              variant={
-                                thread.order.status === 'delivered' ? 'success' :
-                                thread.order.status === 'action_required' || thread.order.status === 'cancelled' ? 'error' : 'info'
-                              }
-                              className="text-[10px] px-1.5 py-0"
+                              variant={statusVariant(thread.order.status) as any}
+                              className="text-[10px] px-1.5 py-0 truncate min-w-0"
                             >
                               {ORDER_STATUS_LABELS[thread.order.status as keyof typeof ORDER_STATUS_LABELS]}
                             </Badge>
