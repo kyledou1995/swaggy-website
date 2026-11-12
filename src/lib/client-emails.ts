@@ -4,6 +4,7 @@
  */
 import type { Order, OrderStatus } from '@/types';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
+import { trackingUrl } from '@/lib/tracking';
 
 export type ClientEmailEvent =
   | 'order_received'
@@ -322,7 +323,17 @@ export function renderClientEmail(event: ClientEmailEvent, ctx: ClientEmailConte
         subject: `Your samples have shipped — ${no}`,
         preheader: o.sample_shipping_days ? `Estimated delivery in about ${o.sample_shipping_days} days.` : 'Your samples are on the way.',
         heading: 'Your samples are on the way',
-        body: `Your physical samples have shipped${o.sample_shipping_days ? ` and should arrive in about <b>${o.sample_shipping_days} days</b>` : ''}. Once you have reviewed them, approve or request changes in your portal.`,
+        body: `Your physical samples have shipped${o.sample_shipping_days ? ` and should arrive in about <b>${o.sample_shipping_days} days</b>` : ''}.${
+          o.sample_tracking_number
+            ? ` <a href="${trackingUrl(o.sample_tracking_number, o.sample_carrier)}" style="color:#059669;font-weight:600">Track your package</a>.`
+            : ''
+        } Once you have reviewed them, approve or request changes in your portal.`,
+        rows: o.sample_tracking_number
+          ? [
+              ['Carrier', o.sample_carrier || 'Carrier'],
+              ['Tracking number', o.sample_tracking_number],
+            ]
+          : undefined,
         cta: 'View your order',
       };
       break;

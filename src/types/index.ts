@@ -84,6 +84,9 @@ export interface Order {
   sample_quantity_note?: string | null;
   sample_physical_requested?: boolean;
   sample_shipped?: boolean;
+  sample_tracking_number?: string | null;
+  sample_carrier?: string | null;
+  sample_shipped_at?: string | null;
   // Cancellation fields
   cancellation_reason?: string | null;
   cancelled_at?: string | null;

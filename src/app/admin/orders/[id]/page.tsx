@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DDPTerm } from '@/components/ui/DDPTerm';
 import { fileUrl } from '@/lib/file-url';
+import { CARRIERS, detectCarrier, trackingUrl } from '@/lib/tracking';
 import { Send, FileText, AlertCircle, Plane, Ship, DollarSign, CheckCircle, XCircle, AlertTriangle, Upload, Camera, Package } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/admin/AdminLayout';
@@ -57,6 +58,10 @@ export default function AdminOrderDetailPage() {
   const [sampleSubmitting, setSampleSubmitting] = useState(false);
   // Admin adjust sample quantity state
   const [showAdjustQuantity, setShowAdjustQuantity] = useState(false);
+  // Sample shipment tracking
+  const [showShipForm, setShowShipForm] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [carrier, setCarrier] = useState('');
   const [adjustedQuantity, setAdjustedQuantity] = useState('');
   const [adjustQuantityNote, setAdjustQuantityNote] = useState('');
   const [adjustingQuantity, setAdjustingQuantity] = useState(false);
@@ -822,10 +827,24 @@ export default function AdminOrderDetailPage() {
     setIsLoadingStatus(true);
     try {
       const supabase = createClient();
-      await supabase.from('orders').update({ sample_shipped: true }).eq('id', orderId);
+      const tracking = trackingNumber.trim();
+      const chosenCarrier = tracking ? carrier || detectCarrier(tracking) : null;
+      const shipPatch = {
+        sample_shipped: true,
+        sample_tracking_number: tracking || null,
+        sample_carrier: chosenCarrier,
+        sample_shipped_at: new Date().toISOString(),
+      };
+      let { error: shipErr } = await supabase.from('orders').update(shipPatch).eq('id', orderId);
+      if (shipErr && /sample_tracking_number|sample_carrier|sample_shipped_at/.test(shipErr.message)) {
+        // Tracking columns not created yet — still mark as shipped; the number goes in the message
+        ({ error: shipErr } = await supabase.from('orders').update({ sample_shipped: true }).eq('id', orderId));
+      }
+      if (shipErr) throw shipErr;
 
       const qty = order!.sample_quantity_approved || order!.sample_quantity_requested || 0;
-      const msg = `Your ${qty} physical sample(s) have been shipped! Estimated delivery: ${order!.sample_shipping_days} days. Please review them upon arrival and let us know if you approve.`;
+      const trackLine = tracking ? `\n\nTracking (${chosenCarrier}): ${tracking}\n${trackingUrl(tracking, chosenCarrier)}` : '';
+      const msg = `Your ${qty ? `${qty} ` : ''}physical sample(s) have been shipped!${order!.sample_shipping_days ? ` Estimated delivery: ${order!.sample_shipping_days} days.` : ''} Please review them upon arrival and let us know if you approve.${trackLine}`;
 
       await supabase.from('order_messages').insert([{
         order_id: orderId,
@@ -835,12 +854,15 @@ export default function AdminOrderDetailPage() {
         attachments: [],
       }]);
 
-      setOrder({ ...order!, sample_shipped: true });
-      setStatusFeedback({ type: 'success', message: 'Samples marked as shipped!' });
+      setOrder({ ...order!, ...shipPatch });
+      setStatusFeedback({ type: 'success', message: tracking ? `Samples marked as shipped with ${chosenCarrier} tracking ${tracking}.` : 'Samples marked as shipped!' });
+      setShowShipForm(false);
+      setTrackingNumber('');
+      setCarrier('');
 
       if (order?.client_id) {
         await notifyOrgMembers({
-          email: { event: 'samples_shipped' },
+          email: { event: 'samples_shipped', message: tracking ? `${chosenCarrier} tracking: ${tracking}` : undefined },
           orderId, clientId: order.client_id, type: 'order_status',
           title: `Samples Shipped — #${order.order_number || orderId.slice(0, 8)}`,
           body: msg,
@@ -1829,11 +1851,11 @@ export default function AdminOrderDetailPage() {
                     <div className="bg-white rounded-lg p-4 border border-purple-200">
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-sm text-gray-600">Client Requested</span>
-                        <span className="font-bold text-gray-900">{order.sample_quantity_requested} sample(s)</span>
+                        <span className="font-bold text-gray-900">{order.sample_quantity_requested ? `${order.sample_quantity_requested} sample(s)` : '—'}</span>
                       </div>
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-sm text-gray-600">Estimated Shipping</span>
-                        <span className="font-semibold text-gray-900">{order.sample_shipping_days} days</span>
+                        <span className="font-semibold text-gray-900">{order.sample_shipping_days ? `${order.sample_shipping_days} days` : '—'}</span>
                       </div>
                       {order.sample_quantity_approved && order.sample_quantity_approved !== order.sample_quantity_requested && (
                         <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
@@ -1842,6 +1864,57 @@ export default function AdminOrderDetailPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* Tracking details */}
+                    {order.sample_shipped && order.sample_tracking_number && (
+                      <div className="bg-white rounded-lg p-4 border border-green-200 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs text-gray-500">{order.sample_carrier || 'Tracking'}{order.sample_shipped_at ? ` · shipped ${new Date(order.sample_shipped_at).toLocaleDateString()}` : ''}</p>
+                          <p className="font-mono font-semibold text-gray-900 break-all">{order.sample_tracking_number}</p>
+                        </div>
+                        <a href={trackingUrl(order.sample_tracking_number, order.sample_carrier)} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-green-700 hover:text-green-800 underline underline-offset-2">
+                          Track package →
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Mark as shipped with tracking */}
+                    {!order.sample_shipped && showShipForm && (
+                      <div className="space-y-3 bg-white rounded-lg p-4 border border-gray-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="sm:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Tracking number</label>
+                            <Input
+                              placeholder="e.g., 1Z999AA10123456784"
+                              value={trackingNumber}
+                              onChange={(e) => setTrackingNumber(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Carrier</label>
+                            <select
+                              value={carrier}
+                              onChange={(e) => setCarrier(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            >
+                              <option value="">{trackingNumber.trim() ? `Auto (${detectCarrier(trackingNumber)})` : 'Auto-detect'}</option>
+                              {CARRIERS.map((c) => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500">The client gets the tracking number and a tracking link by email and in their portal.</p>
+                        <div className="flex gap-2">
+                          <Button variant="primary" size="sm" onClick={handleConfirmSampleShipped} isLoading={isLoadingStatus}>
+                            {trackingNumber.trim() ? 'Confirm Shipped' : 'Confirm Shipped (no tracking)'}
+                          </Button>
+                          <Button variant="secondary" size="sm" onClick={() => { setShowShipForm(false); setTrackingNumber(''); setCarrier(''); }}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Adjust Quantity */}
                     {!showAdjustQuantity ? (
@@ -1855,8 +1928,8 @@ export default function AdminOrderDetailPage() {
                         >
                           Adjust Quantity
                         </button>
-                        {!order.sample_shipped && (
-                          <Button variant="primary" onClick={handleConfirmSampleShipped} isLoading={isLoadingStatus} size="sm">
+                        {!order.sample_shipped && !showShipForm && (
+                          <Button variant="primary" onClick={() => setShowShipForm(true)} size="sm">
                             Mark Samples as Shipped
                           </Button>
                         )}

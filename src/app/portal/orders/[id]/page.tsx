@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { DDPTerm } from '@/components/ui/DDPTerm';
 import { fileUrl } from '@/lib/file-url';
+import { trackingUrl } from '@/lib/tracking';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Send, FileText, Paperclip, Truck, MapPin, Star, Plane, Ship, DollarSign, CheckCircle, CreditCard, XCircle, AlertTriangle, Camera, Package } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
@@ -1639,7 +1640,22 @@ export default function OrderDetailPage() {
                     <p className="text-sm font-medium text-green-800">
                       Your physical sample(s) have been shipped!
                     </p>
-                    <p className="text-xs text-green-700">Please allow 7–14 business days to receive them.</p>
+                    <p className="text-xs text-green-700">
+                      {order.sample_shipping_days ? `Estimated delivery in about ${order.sample_shipping_days} days.` : 'Please allow 7–14 business days to receive them.'}
+                    </p>
+                    {order.sample_tracking_number && (
+                      <p className="text-sm text-green-800 mt-1">
+                        {order.sample_carrier ? `${order.sample_carrier} tracking: ` : 'Tracking: '}
+                        <a
+                          href={trackingUrl(order.sample_tracking_number, order.sample_carrier)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono font-semibold underline underline-offset-2 break-all"
+                        >
+                          {order.sample_tracking_number}
+                        </a>
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
