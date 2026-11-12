@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import { FileText, Paperclip, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { fileNameFromUrl, isImageUrl } from '@/lib/info-requests';
+import { useLightbox } from './ImageLightbox';
 
 export const MAX_ATTACHMENT_MB = 25;
 const MAX_ATTACHMENTS = 10;
@@ -144,17 +145,20 @@ export function PendingAttachments({
 /** Attachments on a sent message: image thumbnails + file links. */
 export function AttachmentList({ urls, dark = false }: { urls?: string[] | null; dark?: boolean }) {
   const list = (urls || []).filter(Boolean);
+  const images = list.filter((u) => /^https?:\/\//.test(u) && isImageUrl(u));
+  const { openAt, viewer } = useLightbox(images);
   if (!list.length) return null;
   return (
     <div className="mt-2 flex flex-wrap gap-2">
+      {viewer}
       {list.map((url) => {
         const isLink = /^https?:\/\//.test(url);
         if (isLink && isImageUrl(url)) {
           return (
-            <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="block">
+            <button key={url} type="button" onClick={() => openAt(url)} aria-label="View image" className="block cursor-zoom-in">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={url} alt="Attachment" className="w-24 h-24 object-cover rounded-lg border border-black/10 hover:opacity-90" />
-            </a>
+            </button>
           );
         }
         const name = isLink ? fileNameFromUrl(url) : url;

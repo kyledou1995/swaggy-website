@@ -1,16 +1,15 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { FileText, HelpCircle, ImageIcon, MessageSquareText, CheckCircle2, XCircle, Paperclip } from 'lucide-react';
+import { FileText, HelpCircle, ImageIcon, MessageSquareText, CheckCircle2, XCircle } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { createClient } from '@/lib/supabase';
+import { AttachmentList } from '@/components/ui/MessageAttachments';
 import { notifyOrgMembers } from '@/lib/notifications';
 import {
   INFO_REQUEST_TYPE_LABELS,
-  fileNameFromUrl,
-  isImageUrl,
   isMissingTableError,
   type InfoRequest,
   type InfoRequestType,
@@ -245,29 +244,7 @@ export function InfoRequestsPanel({
                             Client response{r.responded_at ? ` · ${new Date(r.responded_at).toLocaleString()}` : ''}
                           </p>
                           {r.response_text && <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">{r.response_text}</p>}
-                          {r.response_files?.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {r.response_files.map((url) =>
-                                isImageUrl(url) ? (
-                                  <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="block">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={url} alt="Client upload" className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:opacity-90" />
-                                  </a>
-                                ) : (
-                                  <a
-                                    key={url}
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-700"
-                                  >
-                                    <Paperclip className="w-4 h-4" />
-                                    <span className="max-w-[180px] truncate">{fileNameFromUrl(url)}</span>
-                                  </a>
-                                )
-                              )}
-                            </div>
-                          )}
+                          <AttachmentList urls={r.response_files} />
                         </div>
                       )}
 

@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Paperclip, Upload, X, FileText } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Upload, X, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { supabase } from '@/lib/supabase';
-import { fileNameFromUrl, isImageUrl, type InfoRequest } from '@/lib/info-requests';
+import { AttachmentList } from '@/components/ui/MessageAttachments';
+import { type InfoRequest } from '@/lib/info-requests';
 
 const MAX_FILE_MB = 25;
 
@@ -230,23 +231,7 @@ export function InfoRequestsCard({
                   <span className="font-medium text-gray-700">We asked:</span> {r.message}
                 </p>
                 {r.response_text && <p className="text-gray-900 mt-1 whitespace-pre-wrap break-words">{r.response_text}</p>}
-                {r.response_files?.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {r.response_files.map((url) =>
-                      isImageUrl(url) ? (
-                        <a key={url} href={url} target="_blank" rel="noopener noreferrer">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={url} alt="Uploaded" className="w-16 h-16 object-cover rounded-lg border border-gray-200" />
-                        </a>
-                      ) : (
-                        <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 px-2 py-1 rounded border border-gray-200 text-xs text-gray-700 hover:bg-gray-50">
-                          <Paperclip className="w-3 h-3" />
-                          <span className="max-w-[140px] truncate">{fileNameFromUrl(url)}</span>
-                        </a>
-                      )
-                    )}
-                  </div>
-                )}
+                <AttachmentList urls={r.response_files} />
               </div>
             ))}
           </div>
