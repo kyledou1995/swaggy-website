@@ -53,7 +53,7 @@ function nextRunAt(from: Date = new Date()): Date {
 /** The run that will actually send a reminder due at `dueIso` (runs pick up anything due within 3 hours). */
 const runForDue = (dueIso: string) => nextRunAt(new Date(Math.max(Date.now(), new Date(dueIso).getTime() - SLACK_MS)));
 const fmtRun = (d: Date) =>
-  `${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+  `${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })}`;
 const relDay = (d: Date) => {
   const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const diff = Math.round((start(d) - start(new Date())) / 86400000);
@@ -283,7 +283,7 @@ export default function AdminRemindersPage() {
                 <Send className="w-4 h-4 mr-2" /> Send due now
               </Button>
             </div>
-            {checkedAt && <p className="text-xs text-gray-400">Last checked {checkedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</p>}
+            {checkedAt && <p className="text-xs text-gray-400">Last checked {checkedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit', timeZoneName: 'short' })}</p>}
           </div>
         </div>
 
