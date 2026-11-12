@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BellRing, Clock, PauseCircle, Send, UserCheck, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { BellRing, Clock, PauseCircle, Send, UserCheck, AlertTriangle, CheckCircle2, ChevronRight, RefreshCw } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -30,6 +30,8 @@ export default function AdminRemindersPage() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [ran, setRan] = useState<ReminderRunResult | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [checkedAt, setCheckedAt] = useState<Date | null>(null);
 
   const call = useCallback(async (dryRun: boolean) => {
     const supabase = createClient();
@@ -49,6 +51,7 @@ export default function AdminRemindersPage() {
     setError('');
     try {
       setPreview(await call(true));
+      setCheckedAt(new Date());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load reminders');
     } finally {
@@ -62,7 +65,7 @@ export default function AdminRemindersPage() {
 
   const runNow = async () => {
     if (!preview?.remindersDue.length && !preview?.handoffs.length) return;
-    if (!window.confirm(`Send ${preview.remindersDue.length} reminder(s) and ${preview.handoffs.length} team hand-off(s) now?`)) return;
+    setConfirming(false);
     setRunning(true);
     setError('');
     try {
@@ -91,13 +94,38 @@ export default function AdminRemindersPage() {
               Runs every weekday at about 10am ET; stops as soon as the client acts.
             </p>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <Button variant="secondary" size="sm" onClick={load} disabled={loading}>Refresh</Button>
-            <Button variant="primary" size="sm" onClick={runNow} isLoading={running} disabled={running || loading || (!preview?.remindersDue.length && !preview?.handoffs.length)}>
-              <Send className="w-4 h-4 mr-2" /> Send due now
-            </Button>
+          <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={() => { setRan(null); load(); }} disabled={loading}>
+                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} /> {loading ? 'Refreshing…' : 'Refresh'}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setConfirming(true)}
+                isLoading={running}
+                disabled={running || loading || (!preview?.remindersDue.length && !preview?.handoffs.length)}
+              >
+                <Send className="w-4 h-4 mr-2" /> Send due now
+              </Button>
+            </div>
+            {checkedAt && <p className="text-xs text-gray-400">Last checked {checkedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</p>}
           </div>
         </div>
+
+        {confirming && preview && (
+          <div className="rounded-lg border border-green-300 bg-green-50 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="text-sm text-green-900 flex-1">
+              Send <b>{preview.remindersDue.length}</b> reminder email{preview.remindersDue.length === 1 ? '' : 's'}
+              {preview.handoffs.length > 0 && <> and <b>{preview.handoffs.length}</b> team hand-off{preview.handoffs.length === 1 ? '' : 's'}</>} now?
+              {!preview.weekday && ' (It’s the weekend, so client emails will wait until the next business day.)'}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="primary" size="sm" onClick={runNow} isLoading={running}>Yes, send now</Button>
+              <Button variant="secondary" size="sm" onClick={() => setConfirming(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 flex gap-2">
@@ -144,20 +172,22 @@ export default function AdminRemindersPage() {
                 ) : (
                   <div className="divide-y divide-gray-100">
                     {preview.remindersDue.map((r, i) => (
-                      <div key={`r${i}`} className="py-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm">
+                      <Link key={`r${i}`} href={`/admin/orders/${r.orderId}`} className="group py-3 px-2 -mx-2 rounded-lg hover:bg-gray-50 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm">
                         <span className="font-semibold text-gray-900 w-32">{r.order}</span>
                         <span className="text-gray-700 flex-1">{KIND_LABEL[r.kind]}</span>
                         <Badge variant={r.reminder >= 3 ? 'warning' : 'info'} size="sm">{r.kind === 'message' ? 'Message reminder' : ordinal(r.reminder)}</Badge>
                         <span className="text-gray-500 text-xs sm:w-64 truncate">{r.recipients.length ? r.recipients.join(', ') : 'No recipients (reminders turned off)'}</span>
-                      </div>
+                        <ChevronRight className="hidden sm:block w-4 h-4 text-gray-300 group-hover:text-gray-600" />
+                      </Link>
                     ))}
                     {preview.handoffs.map((h, i) => (
-                      <div key={`h${i}`} className="py-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm">
+                      <Link key={`h${i}`} href={`/admin/orders/${h.orderId}`} className="group py-3 px-2 -mx-2 rounded-lg hover:bg-gray-50 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm">
                         <span className="font-semibold text-gray-900 w-32">{h.order}</span>
                         <span className="text-gray-700 flex-1">{KIND_LABEL[h.kind]}</span>
                         <Badge variant="error" size="sm">Hand-off to team</Badge>
                         <span className="text-gray-500 text-xs sm:w-64">Admins get an email + bell alert</span>
-                      </div>
+                        <ChevronRight className="hidden sm:block w-4 h-4 text-gray-300 group-hover:text-gray-600" />
+                      </Link>
                     ))}
                   </div>
                 )}
@@ -172,12 +202,13 @@ export default function AdminRemindersPage() {
                 ) : (
                   <div className="divide-y divide-gray-100">
                     {[...preview.upcoming].sort((a, b) => a.next.localeCompare(b.next)).map((u, i) => (
-                      <div key={i} className="py-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm">
+                      <Link key={i} href={`/admin/orders/${u.orderId}`} className="group py-3 px-2 -mx-2 rounded-lg hover:bg-gray-50 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm">
                         <span className="font-semibold text-gray-900 w-32">{u.order}</span>
                         <span className="text-gray-700 flex-1">{KIND_LABEL[u.kind]}</span>
                         <Badge variant="neutral" size="sm">{u.kind === 'message' ? 'Message reminder' : ordinal(u.reminder)}</Badge>
-                        <span className="text-gray-500 text-xs sm:w-64">{fmt(u.next)} (next weekday run)</span>
-                      </div>
+                        <span className="text-gray-500 text-xs sm:w-64">Due {fmt(u.next)} · sent on the next weekday run after that</span>
+                        <ChevronRight className="hidden sm:block w-4 h-4 text-gray-300 group-hover:text-gray-600" />
+                      </Link>
                     ))}
                   </div>
                 )}
@@ -191,9 +222,9 @@ export default function AdminRemindersPage() {
                   <p className="text-sm text-gray-500 mb-3">The client sent a message after we asked. Reminders resume once we reply.</p>
                   <div className="flex flex-wrap gap-2">
                     {preview.paused.map((p, i) => (
-                      <span key={i} className="text-sm rounded-full border border-gray-200 px-3 py-1 text-gray-700">
-                        {p.order} · {KIND_LABEL[p.kind]}
-                      </span>
+                      <Link key={i} href={`/admin/orders/${p.orderId}`} className="text-sm rounded-full border border-gray-200 px-3 py-1 text-gray-700 hover:border-green-400 hover:text-green-700 transition-colors">
+                        {p.order} · {KIND_LABEL[p.kind]} →
+                      </Link>
                     ))}
                   </div>
                 </CardBody>

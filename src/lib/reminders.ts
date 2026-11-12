@@ -75,11 +75,11 @@ export interface ReminderRunResult {
   pending: number;
   created: number;
   resolved: number;
-  remindersDue: { order: string; kind: ReminderKind; reminder: number; recipients: string[] }[];
+  remindersDue: { orderId: string; order: string; kind: ReminderKind; reminder: number; recipients: string[] }[];
   emailsSent: number;
-  handoffs: { order: string; kind: ReminderKind }[];
-  paused: { order: string; kind: ReminderKind }[];
-  upcoming: { order: string; kind: ReminderKind; next: string; reminder: number }[];
+  handoffs: { orderId: string; order: string; kind: ReminderKind }[];
+  paused: { orderId: string; order: string; kind: ReminderKind }[];
+  upcoming: { orderId: string; order: string; kind: ReminderKind; next: string; reminder: number }[];
   errors: string[];
 }
 
@@ -287,13 +287,13 @@ export async function runClientReminders(admin: SupabaseClient, opts: { dryRun?:
     const last = thread[thread.length - 1];
     // (10-minute buffer: some client actions post an automatic message at the same moment)
     if (row.kind !== 'message' && last && last.sender_role !== 'admin' && new Date(last.created_at).getTime() > new Date(row.started_at).getTime() + 10 * 60000) {
-      result.paused.push({ order: o.order_number || o.id, kind: row.kind });
+      result.paused.push({ orderId: o.id, order: o.order_number || o.id, kind: row.kind });
       continue;
     }
     const nextAt = nextDueAt(row);
     if (nextAt) {
       if (nextAt.getTime() <= now.getTime() + SLACK_MS) due.push({ ...row, reminderNo: row.reminders_sent + 1 });
-      else result.upcoming.push({ order: o.order_number || o.id, kind: row.kind, next: nextAt.toISOString(), reminder: row.reminders_sent + 1 });
+      else result.upcoming.push({ orderId: o.id, order: o.order_number || o.id, kind: row.kind, next: nextAt.toISOString(), reminder: row.reminders_sent + 1 });
     } else if (
       row.kind !== 'message' &&
       !row.escalated_at &&
@@ -325,6 +325,7 @@ export async function runClientReminders(admin: SupabaseClient, opts: { dryRun?:
     }));
     group.forEach((g) =>
       result.remindersDue.push({
+        orderId: g.order_id,
         order: byId.get(g.order_id)!.order_number || g.order_id,
         kind: g.kind,
         reminder: g.reminderNo,
@@ -351,7 +352,7 @@ export async function runClientReminders(admin: SupabaseClient, opts: { dryRun?:
 
   // ── Hand-off to the Merchin team ──
   if (handoff.length) {
-    handoff.forEach((h) => result.handoffs.push({ order: byId.get(h.order_id)!.order_number || h.order_id, kind: h.kind }));
+    handoff.forEach((h) => result.handoffs.push({ orderId: h.order_id, order: byId.get(h.order_id)!.order_number || h.order_id, kind: h.kind }));
     if (!dryRun) {
       const { data: adminsData } = await admin.from('profiles').select('*').eq('role', 'admin');
       const admins = (adminsData || []) as Profile[];
