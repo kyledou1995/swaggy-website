@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { DDPTerm } from '@/components/ui/DDPTerm';
 import { fileUrl } from '@/lib/file-url';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Send, FileText, Paperclip, Truck, MapPin, Star, Plane, Ship, DollarSign, CheckCircle, CreditCard, XCircle, AlertTriangle, Camera, Package } from 'lucide-react';
@@ -938,7 +939,7 @@ export default function OrderDetailPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-500 mb-1">
-                  Target Unit Price
+                  Target Unit Price (<DDPTerm />)
                 </p>
                 <p className="font-semibold text-gray-900">
                   {order.target_price ? `$${order.target_price.toFixed(2)}` : 'Not specified'}

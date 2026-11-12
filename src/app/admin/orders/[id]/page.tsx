@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { DDPTerm } from '@/components/ui/DDPTerm';
 import { fileUrl } from '@/lib/file-url';
 import { Send, FileText, AlertCircle, Plane, Ship, DollarSign, CheckCircle, XCircle, AlertTriangle, Upload, Camera, Package } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
@@ -1267,7 +1268,7 @@ export default function AdminOrderDetailPage() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600 font-medium">Target Price</p>
+                    <p className="text-sm text-gray-600 font-medium">Target Price (<DDPTerm />)</p>
                     <p className="text-base font-semibold text-gray-900 mt-1">
                       {order.target_price ? `$${order.target_price.toFixed(2)} per unit` : 'Not specified'}
                     </p>

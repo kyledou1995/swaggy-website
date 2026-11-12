@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { DDPTerm } from '@/components/ui/DDPTerm';
 import { useRouter } from 'next/navigation';
 import {
   CheckCircle,
@@ -1144,7 +1145,7 @@ export default function NewOrderPage() {
                   error={errors.quantity}
                 />
                 <Input
-                  label="Target Unit Price ($) — Optional"
+                  label={<>Target Unit Price (<DDPTerm />) ($) — Optional</>}
                   type="number"
                   placeholder="e.g., 8.50"
                   step="0.01"
@@ -1761,7 +1762,7 @@ export default function NewOrderPage() {
                       <p className="font-semibold text-gray-900">{parseInt(formData.quantity).toLocaleString()} units</p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500 mb-1">Target Unit Price</p>
+                      <p className="text-sm text-gray-500 mb-1">Target Unit Price (<DDPTerm />)</p>
                       <p className="font-semibold text-gray-900">
                         {formData.targetPrice ? `$${formData.targetPrice}` : 'Not specified'}
                       </p>

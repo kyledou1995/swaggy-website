@@ -1,7 +1,8 @@
 import React from 'react';
+import { DDPTerm } from '@/components/ui/DDPTerm';
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
+export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'label'> {
+  label?: React.ReactNode;
   error?: string;
   helperText?: string;
 }
