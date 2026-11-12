@@ -38,8 +38,27 @@ const KIND_LABEL: Record<ReminderKind, string> = {
 };
 
 const ordinal = (n: number) => (n === 1 ? '1st (24 hours)' : n === 2 ? '2nd (day 3)' : n === 3 ? 'Final (day 7)' : `#${n}`);
-const fmt = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+/** Scheduled run (vercel.json cron "0 15 * * 1-5"): weekdays at 15:00 UTC = 10am Eastern in winter, 11am in summer. */
+const RUN_HOUR_UTC = 15;
+/** Allow for Vercel cron starting up to an hour late. */
+const SLACK_MS = 3 * 3600000;
+
+/** First scheduled run at or after `from`. */
+function nextRunAt(from: Date = new Date()): Date {
+  const d = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate(), RUN_HOUR_UTC));
+  if (d.getTime() < from.getTime()) d.setUTCDate(d.getUTCDate() + 1);
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
+  return d;
+}
+/** The run that will actually send a reminder due at `dueIso` (runs pick up anything due within 3 hours). */
+const runForDue = (dueIso: string) => nextRunAt(new Date(Math.max(Date.now(), new Date(dueIso).getTime() - SLACK_MS)));
+const fmtRun = (d: Date) =>
+  `${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+const relDay = (d: Date) => {
+  const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((start(d) - start(new Date())) / 86400000);
+  return diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'long' });
+};
 
 /** One reminder row the admin can open (due now, upcoming, or paused). */
 interface ItemView {
@@ -226,12 +245,16 @@ export default function AdminRemindersPage() {
     }
   };
 
-  const dueItems: ItemView[] = (preview?.remindersDue || []).map((r) => ({ ...r, when: 'Due now', section: 'due' }));
+  const dueItems: ItemView[] = (preview?.remindersDue || []).map((r) => ({ ...r, when: `Goes out ${relDay(nextRunAt())}, ${fmtRun(nextRunAt())}`, section: 'due' }));
   const upcomingItems: ItemView[] = [...(preview?.upcoming || [])]
     .sort((a, b) => a.next.localeCompare(b.next))
-    .map((u) => ({ ...u, when: `Due ${fmt(u.next)}`, section: 'upcoming' }));
+    .map((u) => {
+      const run = runForDue(u.next);
+      return { ...u, when: `Goes out ${relDay(run)}, ${fmtRun(run)}`, section: 'upcoming' as const };
+    });
   const pausedItems: ItemView[] = (preview?.paused || []).map((p) => ({ ...p, when: 'Paused', section: 'paused' }));
 
+  const nextRun = nextRunAt(checkedAt || new Date());
   const batchCount = preview?.batches.length || 0;
   const totalEmails =
     (preview?.batches || []).reduce((n, b) => n + b.preview.to.length, 0) + (preview?.handoffPreview?.to.length || 0);
@@ -299,7 +322,15 @@ export default function AdminRemindersPage() {
             </div>
 
             <Card>
-              <CardHeader><h2 className="text-lg font-semibold text-gray-900">Due on the next run</h2></CardHeader>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                  <h2 className="text-lg font-semibold text-gray-900">Due on the next run</h2>
+                  <p className="text-sm text-gray-600 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-green-600" />
+                    Next run: <b className="text-gray-900">{relDay(nextRun)}, {fmtRun(nextRun)}</b>
+                  </p>
+                </div>
+              </CardHeader>
               <CardBody>
                 {dueItems.length === 0 && preview.handoffs.length === 0 ? (
                   <p className="text-sm text-gray-500">Nothing due right now.</p>
@@ -347,7 +378,7 @@ export default function AdminRemindersPage() {
                         right={
                           <>
                             <Badge variant="neutral" size="sm">{u.kind === 'message' ? 'Message reminder' : ordinal(u.reminder || 1)}</Badge>
-                            <span className="text-gray-500 text-xs sm:w-56">{u.when} · goes out on the next weekday run after that</span>
+                            <span className="text-gray-500 text-xs sm:w-56">{u.when}</span>
                           </>
                         }
                       />
