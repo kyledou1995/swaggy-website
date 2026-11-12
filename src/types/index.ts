@@ -87,6 +87,7 @@ export interface Order {
   sample_tracking_number?: string | null;
   sample_carrier?: string | null;
   sample_shipped_at?: string | null;
+  sample_shipping_address?: import('@/lib/addresses').ShippingAddress | null;
   // Cancellation fields
   cancellation_reason?: string | null;
   cancelled_at?: string | null;

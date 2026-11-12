@@ -4,6 +4,7 @@
  */
 import type { Order } from '@/types';
 import { fileUrl } from './file-url';
+import { formatAddress } from './addresses';
 
 export type AdminEmailEvent =
   | 'new_order'
@@ -233,7 +234,10 @@ export function renderAdminEmail(event: AdminEmailEvent, ctx: AdminEmailContext)
         tone: 'action',
         heading: 'Physical samples requested',
         body: `${esc(who)} wants physical samples shipped before approving.`,
-        rows: [['Samples requested', o.sample_quantity_requested ? String(o.sample_quantity_requested) : '']],
+        rows: [
+          ['Samples requested', o.sample_quantity_requested ? String(o.sample_quantity_requested) : ''],
+          ['Ship to', formatAddress(o.sample_shipping_address) || (ctx.message ?? '')],
+        ],
         cta: 'Arrange samples',
       };
       break;

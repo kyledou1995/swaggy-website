@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { DDPTerm } from '@/components/ui/DDPTerm';
 import { fileUrl } from '@/lib/file-url';
 import { trackingUrl } from '@/lib/tracking';
+import { formatAddress, type ShippingAddress } from '@/lib/addresses';
+import { ShippingAddressPicker } from '@/components/portal/ShippingAddressPicker';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Send, FileText, Paperclip, Truck, MapPin, Star, Plane, Ship, DollarSign, CheckCircle, CreditCard, XCircle, AlertTriangle, Camera, Package } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
@@ -70,6 +72,11 @@ export default function OrderDetailPage() {
   const messagesBoxRef = useRef<HTMLDivElement>(null);
   const msgAttachments = useMessageAttachments();
   const changeAttachments = useMessageAttachments();
+  // Physical samples: confirm where to ship
+  const [showSampleAddress, setShowSampleAddress] = useState(false);
+  const [sampleAddress, setSampleAddress] = useState<ShippingAddress | null>(null);
+  const [saveSampleAddress, setSaveSampleAddress] = useState(false);
+  const [sampleRequestError, setSampleRequestError] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const unread = useOrderUnread(order?.id, user?.id);
 
@@ -549,15 +556,46 @@ export default function OrderDetailPage() {
   const handleRequestPhysicalSamples = async () => {
     if (!user || !order) return;
 
+    if (!sampleAddress) {
+      setShowSampleAddress(true);
+      setSampleRequestError(showSampleAddress ? 'Please choose or enter a shipping address.' : '');
+      return;
+    }
+
     setRequestingSamples(true);
+    setSampleRequestError('');
     try {
       const supabase = createClient();
+      const addressText = formatAddress(sampleAddress);
 
-      await supabase.from('orders').update({
+      let { error: reqErr } = await supabase.from('orders').update({
         sample_physical_requested: true,
+        sample_shipping_address: sampleAddress,
       }).eq('id', orderId);
+      if (reqErr && /sample_shipping_address/.test(reqErr.message)) {
+        // Column not created yet — the address still goes to the team in the message below
+        ({ error: reqErr } = await supabase.from('orders').update({ sample_physical_requested: true }).eq('id', orderId));
+      }
+      if (reqErr) throw reqErr;
 
-      const msg = `I'd like to receive physical samples shipped to me for hands-on review before approving.`;
+      // Optionally keep a typed address in the client's warehouses
+      if (saveSampleAddress && !sampleAddress.delivery_address_id) {
+        const { error: saveErr } = await supabase.from('delivery_addresses').insert({
+          organization_id: user.organization_id || user.id,
+          label: sampleAddress.attention ? `${sampleAddress.attention} — ${sampleAddress.city}` : `${sampleAddress.city} address`,
+          address_line1: sampleAddress.address_line1.trim(),
+          address_line2: (sampleAddress.address_line2 || '').trim(),
+          city: sampleAddress.city.trim(),
+          state: (sampleAddress.state || '').trim(),
+          zip_code: (sampleAddress.zip_code || '').trim(),
+          country: sampleAddress.country.trim(),
+          is_default: false,
+          created_by: user.id,
+        });
+        if (saveErr) console.warn('Could not save address:', saveErr.message);
+      }
+
+      const msg = `I'd like to receive physical samples shipped to me for hands-on review before approving.\n\nShip to:\n${formatAddress(sampleAddress, { multiline: true })}`;
 
       await supabase.from('order_messages').insert([{
         order_id: orderId,
@@ -567,7 +605,8 @@ export default function OrderDetailPage() {
         attachments: [],
       }]);
 
-      setOrder({ ...order, sample_physical_requested: true });
+      setOrder({ ...order, sample_physical_requested: true, sample_shipping_address: sampleAddress });
+      setShowSampleAddress(false);
       setAllMessages([...allMessages, {
         id: `msg_${Date.now()}`,
         order_id: orderId,
@@ -579,15 +618,16 @@ export default function OrderDetailPage() {
       }]);
 
       await notifyAdmins({
-        email: { event: 'physical_samples_requested' },
+        email: { event: 'physical_samples_requested', message: addressText },
         orderId,
         type: 'order_status',
         title: `Physical Samples Requested — #${order.order_number || orderId.slice(0, 8)}`,
-        body: `${user.full_name} requested physical samples to be shipped for review.`,
+        body: `${user.full_name} requested physical samples, shipping to: ${addressText}`,
         supabaseClient: supabase,
       });
     } catch (error) {
       console.error('Error requesting samples:', error);
+      setSampleRequestError(error instanceof Error ? error.message : 'Could not submit your request. Please try again.');
     } finally {
       setRequestingSamples(false);
     }
@@ -1748,15 +1788,30 @@ export default function OrderDetailPage() {
                       <strong>Estimated delivery:</strong> 7–14 business days. Shipping is on us — no extra charge.
                     </p>
                   </div>
-                  <Button
-                    variant="primary"
-                    onClick={handleRequestPhysicalSamples}
-                    isLoading={requestingSamples}
-                    className="w-full"
-                  >
-                    <Package className="w-4 h-4 mr-2" />
-                    Request Physical Samples
-                  </Button>
+                  {showSampleAddress && (
+                    <div className="mb-4">
+                      <p className="text-sm font-semibold text-gray-900 mb-2">Where should we ship your samples?</p>
+                      <ShippingAddressPicker onChange={setSampleAddress} onSaveNewChange={setSaveSampleAddress} />
+                    </div>
+                  )}
+                  {sampleRequestError && <p className="text-sm text-red-600 mb-3">{sampleRequestError}</p>}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      variant="primary"
+                      onClick={handleRequestPhysicalSamples}
+                      isLoading={requestingSamples}
+                      disabled={requestingSamples || (showSampleAddress && !sampleAddress)}
+                      className="w-full"
+                    >
+                      <Package className="w-4 h-4 mr-2" />
+                      {showSampleAddress ? 'Confirm Address & Request Samples' : 'Request Physical Samples'}
+                    </Button>
+                    {showSampleAddress && (
+                      <Button variant="secondary" onClick={() => { setShowSampleAddress(false); setSampleRequestError(''); }} className="w-full sm:w-auto">
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="border border-purple-200 rounded-xl p-5 bg-purple-50">
@@ -1767,6 +1822,12 @@ export default function OrderDetailPage() {
                   <p className="text-sm text-gray-600">
                     Your request for physical samples has been submitted. Estimated delivery: 7–14 business days.
                   </p>
+                  {order.sample_shipping_address && (
+                    <div className="mt-3 text-sm">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Shipping to</p>
+                      <p className="text-gray-800 whitespace-pre-line">{formatAddress(order.sample_shipping_address, { multiline: true })}</p>
+                    </div>
+                  )}
                   {!order.sample_shipped && (
                     <p className="text-sm text-purple-700 mt-3">Our team is preparing your samples for shipment.</p>
                   )}

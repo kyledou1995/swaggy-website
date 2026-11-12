@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { DDPTerm } from '@/components/ui/DDPTerm';
 import { fileUrl } from '@/lib/file-url';
 import { CARRIERS, detectCarrier, trackingUrl } from '@/lib/tracking';
+import { formatAddress } from '@/lib/addresses';
 import { Send, FileText, AlertCircle, Plane, Ship, DollarSign, CheckCircle, XCircle, AlertTriangle, Upload, Camera, Package } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/admin/AdminLayout';
@@ -1858,6 +1859,23 @@ export default function AdminOrderDetailPage() {
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-sm text-gray-600">Estimated Shipping</span>
                         <span className="font-semibold text-gray-900">{order.sample_shipping_days ? `${order.sample_shipping_days} days` : '—'}</span>
+                      </div>
+                      <div className="flex justify-between items-start gap-4 pt-2 mt-2 border-t border-purple-100">
+                        <span className="text-sm text-gray-600 shrink-0">Ship To</span>
+                        {order.sample_shipping_address ? (
+                          <div className="text-right">
+                            <p className="font-semibold text-gray-900 text-sm whitespace-pre-line">{formatAddress(order.sample_shipping_address, { multiline: true })}</p>
+                            <button
+                              type="button"
+                              onClick={() => navigator.clipboard?.writeText(formatAddress(order.sample_shipping_address, { multiline: true }))}
+                              className="text-xs text-purple-600 hover:text-purple-800 font-medium mt-1"
+                            >
+                              Copy address
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-500 text-right">Not provided — check the client&apos;s message</span>
+                        )}
                       </div>
                       {order.sample_quantity_approved && order.sample_quantity_approved !== order.sample_quantity_requested && (
                         <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
