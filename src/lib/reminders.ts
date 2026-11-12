@@ -69,17 +69,26 @@ type Profile = {
 
 type Msg = { id: string; order_id: string; sender_role: string; message: string | null; attachments?: string[] | null; created_at: string };
 
+export interface EmailPreview {
+  to: string[];
+  subject: string;
+  html: string;
+}
+
 export interface ReminderRunResult {
   dryRun: boolean;
   weekday: boolean;
   pending: number;
   created: number;
   resolved: number;
-  remindersDue: { orderId: string; order: string; kind: ReminderKind; reminder: number; recipients: string[] }[];
+  remindersDue: { orderId: string; itemKey: string; order: string; company: string; kind: ReminderKind; reminder: number; recipients: string[]; preview: EmailPreview }[];
   emailsSent: number;
   handoffs: { orderId: string; order: string; kind: ReminderKind }[];
-  paused: { orderId: string; order: string; kind: ReminderKind }[];
-  upcoming: { orderId: string; order: string; kind: ReminderKind; next: string; reminder: number }[];
+  paused: { orderId: string; itemKey: string; order: string; company: string; kind: ReminderKind; reminder: number | null; recipients: string[]; preview: EmailPreview | null }[];
+  upcoming: { orderId: string; itemKey: string; order: string; company: string; kind: ReminderKind; next: string; reminder: number; recipients: string[]; preview: EmailPreview }[];
+  /** Exactly what "Send due now" will send: one email per company (bundled). */
+  batches: { company: string; orders: string[]; preview: EmailPreview }[];
+  handoffPreview: EmailPreview | null;
   errors: string[];
 }
 
@@ -164,12 +173,22 @@ function isWeekday(d: Date) {
   return day !== 'Sat' && day !== 'Sun';
 }
 
-export async function runClientReminders(admin: SupabaseClient, opts: { dryRun?: boolean; now?: Date } = {}): Promise<ReminderRunResult> {
+export async function runClientReminders(
+  admin: SupabaseClient,
+  opts: {
+    dryRun?: boolean;
+    now?: Date;
+    /** Send this one item's next reminder right now (admin "send early"). */
+    only?: { orderId: string; itemKey: string };
+  } = {}
+): Promise<ReminderRunResult> {
   const dryRun = !!opts.dryRun;
+  const only = opts.only || null;
   const now = opts.now || new Date();
   const weekday = isWeekday(now);
   const result: ReminderRunResult = {
-    dryRun, weekday, pending: 0, created: 0, resolved: 0, remindersDue: [], emailsSent: 0, handoffs: [], paused: [], upcoming: [], errors: [],
+    dryRun, weekday, pending: 0, created: 0, resolved: 0, remindersDue: [], emailsSent: 0, handoffs: [], paused: [], upcoming: [],
+    batches: [], handoffPreview: null, errors: [],
   };
 
   // ── Load everything we need ──
@@ -278,22 +297,61 @@ export async function runClientReminders(admin: SupabaseClient, opts: { dryRun?:
   }
 
   // ── Decide what's due ──
+  const companyOf = (o: Order) => {
+    const owner = owners.get(o.client_id);
+    return owner?.company_name || owner?.full_name || owner?.email || 'Client';
+  };
+  const recipientsFor = (o: Order) => membersFor(o).filter((m) => m.email && m.email_reminders !== false);
+  const lineFor = (row: ReminderRow & { item: PendingItem }, reminderNo: number): ReminderLine => ({
+    order: byId.get(row.order_id)!,
+    kind: row.kind,
+    detail: row.item.detail,
+    reminderNo,
+    isFinal: row.kind !== 'message' && reminderNo >= REMINDER_DAYS.length,
+  });
+  const previewOf = (lines: ReminderLine[], recipients: Profile[]): EmailPreview => {
+    const email = renderClientReminderEmail(lines, { recipientName: recipients[0]?.full_name, baseUrl: BASE_URL });
+    return { to: recipients.map((r) => r.email!), subject: email.subject, html: email.html };
+  };
+
   const due: (ReminderRow & { item: PendingItem; reminderNo: number })[] = [];
   const handoff: (ReminderRow & { item: PendingItem })[] = [];
   for (const row of working) {
     const o = byId.get(row.order_id)!;
+    const isTarget = !!only && row.order_id === only.orderId && row.item_key === only.itemKey;
+    if (only && !isTarget) continue;
+    const nextAt = nextDueAt(row);
+    const recips = recipientsFor(o);
+    const base = { orderId: o.id, itemKey: row.item_key, order: o.order_number || o.id, company: companyOf(o), kind: row.kind, recipients: recips.map((r) => r.email!) };
+
+    if (isTarget) {
+      // Admin chose to send this one early
+      if (nextAt) due.push({ ...row, reminderNo: row.reminders_sent + 1 });
+      else result.errors.push('All reminders for this item have already been sent.');
+      continue;
+    }
+
     // Paused while the client's latest message is waiting on Merchin (ball is in our court)
     const thread = messages.filter((m) => m.order_id === row.order_id);
     const last = thread[thread.length - 1];
     // (10-minute buffer: some client actions post an automatic message at the same moment)
     if (row.kind !== 'message' && last && last.sender_role !== 'admin' && new Date(last.created_at).getTime() > new Date(row.started_at).getTime() + 10 * 60000) {
-      result.paused.push({ orderId: o.id, order: o.order_number || o.id, kind: row.kind });
+      result.paused.push({
+        ...base,
+        reminder: nextAt ? row.reminders_sent + 1 : null,
+        preview: nextAt ? previewOf([lineFor(row, row.reminders_sent + 1)], recips) : null,
+      });
       continue;
     }
-    const nextAt = nextDueAt(row);
     if (nextAt) {
       if (nextAt.getTime() <= now.getTime() + SLACK_MS) due.push({ ...row, reminderNo: row.reminders_sent + 1 });
-      else result.upcoming.push({ orderId: o.id, order: o.order_number || o.id, kind: row.kind, next: nextAt.toISOString(), reminder: row.reminders_sent + 1 });
+      else
+        result.upcoming.push({
+          ...base,
+          next: nextAt.toISOString(),
+          reminder: row.reminders_sent + 1,
+          preview: previewOf([lineFor(row, row.reminders_sent + 1)], recips),
+        });
     } else if (
       row.kind !== 'message' &&
       !row.escalated_at &&
@@ -304,35 +362,62 @@ export async function runClientReminders(admin: SupabaseClient, opts: { dryRun?:
     }
   }
 
-  if (!weekday) return result; // log is synced; emails wait for the next business day
-
-  // ── Client reminder emails: one per organization ──
+  // Previews of what will go out (also shown on the admin page before sending)
   const groups = new Map<string, typeof due>();
   due.forEach((d) => {
     const k = groupKeyFor(byId.get(d.order_id)!);
     groups.set(k, [...(groups.get(k) || []), d]);
   });
-
   for (const [, group] of groups) {
     const firstOrder = byId.get(group[0].order_id)!;
-    const recipients = membersFor(firstOrder).filter((m) => m.email && m.email_reminders !== false);
-    const lines: ReminderLine[] = group.map((g) => ({
-      order: byId.get(g.order_id)!,
-      kind: g.kind,
-      detail: g.item.detail,
-      reminderNo: g.reminderNo,
-      isFinal: g.kind !== 'message' && g.reminderNo >= REMINDER_DAYS.length,
-    }));
-    group.forEach((g) =>
+    const recips = recipientsFor(firstOrder);
+    group.forEach((g) => {
+      const o = byId.get(g.order_id)!;
       result.remindersDue.push({
         orderId: g.order_id,
-        order: byId.get(g.order_id)!.order_number || g.order_id,
+        itemKey: g.item_key,
+        order: o.order_number || g.order_id,
+        company: companyOf(o),
         kind: g.kind,
         reminder: g.reminderNo,
-        recipients: recipients.map((r) => r.email!),
-      })
-    );
-    if (dryRun) continue;
+        recipients: recips.map((r) => r.email!),
+        preview: previewOf([lineFor(g, g.reminderNo)], recips),
+      });
+    });
+    result.batches.push({
+      company: companyOf(firstOrder),
+      orders: [...new Set(group.map((g) => byId.get(g.order_id)!.order_number || g.order_id))],
+      preview: previewOf(group.map((g) => lineFor(g, g.reminderNo)), recips),
+    });
+  }
+
+  // Admins (for hand-off previews and sends)
+  let admins: Profile[] = [];
+  if (handoff.length) {
+    const { data: adminsData } = await admin.from('profiles').select('*').eq('role', 'admin');
+    admins = ((adminsData || []) as Profile[]).filter((a) => a.email && a.email_order_status !== false);
+  }
+  const handoffLines = handoff.map((h) => {
+    const o = byId.get(h.order_id)!;
+    return { order: o, kind: h.kind, detail: h.item.detail, company: companyOf(o), since: h.started_at };
+  });
+  if (handoff.length) {
+    const email = renderAdminHandoffEmail(handoffLines, { baseUrl: BASE_URL });
+    result.handoffPreview = { to: admins.map((a) => a.email!), subject: email.subject, html: email.html };
+  }
+
+  // Scheduled runs only send on weekdays; an admin sending one item early can send any day.
+  if (!weekday && !only) return result;
+  if (dryRun) {
+    handoff.forEach((h) => result.handoffs.push({ orderId: h.order_id, order: byId.get(h.order_id)!.order_number || h.order_id, kind: h.kind }));
+    return result;
+  }
+
+  // ── Client reminder emails: one per organization ──
+  for (const [, group] of groups) {
+    const firstOrder = byId.get(group[0].order_id)!;
+    const recipients = recipientsFor(firstOrder);
+    const lines: ReminderLine[] = group.map((g) => lineFor(g, g.reminderNo));
 
     for (const m of recipients) {
       const email = renderClientReminderEmail(lines, { recipientName: m.full_name, baseUrl: BASE_URL });
@@ -353,42 +438,27 @@ export async function runClientReminders(admin: SupabaseClient, opts: { dryRun?:
   // ── Hand-off to the Merchin team ──
   if (handoff.length) {
     handoff.forEach((h) => result.handoffs.push({ orderId: h.order_id, order: byId.get(h.order_id)!.order_number || h.order_id, kind: h.kind }));
-    if (!dryRun) {
-      const { data: adminsData } = await admin.from('profiles').select('*').eq('role', 'admin');
-      const admins = (adminsData || []) as Profile[];
-      const lines = handoff.map((h) => {
-        const o = byId.get(h.order_id)!;
-        const owner = owners.get(o.client_id);
-        return {
-          order: o,
-          kind: h.kind,
-          detail: h.item.detail,
-          company: owner?.company_name || owner?.full_name || owner?.email || 'Client',
-          since: h.started_at,
-        };
-      });
-      const email = renderAdminHandoffEmail(lines, { baseUrl: BASE_URL });
-      for (const a of admins.filter((x) => x.email && x.email_order_status !== false)) {
-        const res = await sendEmail({ to: a.email!, ...email, replyTo: null });
-        if (res.sent) result.emailsSent++;
-        else if (res.error) result.errors.push(`admin email ${a.email}: ${res.error}`);
-      }
-      // In-app alert per order
-      const notifRows = admins.flatMap((a) =>
-        lines.map((l) => ({
-          user_id: a.id,
-          type: 'order_status',
-          title: `Client hasn't responded — #${l.order.order_number || l.order.id.slice(0, 8)}`,
-          body: `${l.company} hasn't acted after 3 reminders. Time for a personal follow-up.`,
-          order_id: l.order.id,
-          target_role: 'admin',
-          is_read: false,
-          email_sent: true,
-        }))
-      );
-      if (notifRows.length) await admin.from('notifications').insert(notifRows);
-      await admin.from('client_reminders').update({ escalated_at: now.toISOString() }).in('id', handoff.map((h) => h.id));
+    const email = renderAdminHandoffEmail(handoffLines, { baseUrl: BASE_URL });
+    for (const a of admins) {
+      const res = await sendEmail({ to: a.email!, ...email, replyTo: null });
+      if (res.sent) result.emailsSent++;
+      else if (res.error) result.errors.push(`admin email ${a.email}: ${res.error}`);
     }
+    // In-app alert per order
+    const notifRows = admins.flatMap((a) =>
+      handoffLines.map((l) => ({
+        user_id: a.id,
+        type: 'order_status',
+        title: `Client hasn't responded — #${l.order.order_number || l.order.id.slice(0, 8)}`,
+        body: `${l.company} hasn't acted after 3 reminders. Time for a personal follow-up.`,
+        order_id: l.order.id,
+        target_role: 'admin',
+        is_read: false,
+        email_sent: true,
+      }))
+    );
+    if (notifRows.length) await admin.from('notifications').insert(notifRows);
+    await admin.from('client_reminders').update({ escalated_at: now.toISOString() }).in('id', handoff.map((h) => h.id));
   }
 
   return result;

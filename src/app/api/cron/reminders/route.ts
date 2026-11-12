@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   if (!admin) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not configured' }, { status: 500 });
 
   const r = await runClientReminders(admin);
-  console.log('reminders:', JSON.stringify({ ...r, upcoming: r.upcoming.length }));
+  console.log('reminders:', JSON.stringify({ weekday: r.weekday, pending: r.pending, due: r.remindersDue.map((d) => `${d.order}:${d.kind}#${d.reminder}`), handoffs: r.handoffs.length, sent: r.emailsSent, errors: r.errors }));
   // Counts only — no client details in the cron response
   return NextResponse.json({
     weekday: r.weekday,
@@ -52,7 +52,8 @@ export async function POST(request: NextRequest) {
   const { data: me } = await admin.from('profiles').select('role').eq('id', user.id).single();
   if (me?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const body = (await request.json().catch(() => ({}))) as { dryRun?: boolean };
-  const r = await runClientReminders(admin, { dryRun: body.dryRun !== false });
+  const body = (await request.json().catch(() => ({}))) as { dryRun?: boolean; only?: { orderId?: string; itemKey?: string } };
+  const only = body.only?.orderId && body.only?.itemKey ? { orderId: body.only.orderId, itemKey: body.only.itemKey } : undefined;
+  const r = await runClientReminders(admin, { dryRun: body.dryRun !== false, only });
   return NextResponse.json(r);
 }
