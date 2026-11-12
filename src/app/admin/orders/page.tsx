@@ -20,7 +20,7 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
-  // Cancelled orders are archived: hidden from the active list, shown under "Archived"
+  // Delivered and cancelled orders are archived: hidden from the active list, shown under "Archived"
   const [view, setView] = useState<'active' | 'archived'>('active');
   /** Latest activity per order: status updates, messages, or edits to the order. */
   const [lastActivity, setLastActivity] = useState<Record<string, string>>({});
@@ -56,12 +56,13 @@ export default function AdminOrdersPage() {
     loadData();
   }, []);
 
-  const activeCount = useMemo(() => orders.filter((o) => o.status !== 'cancelled').length, [orders]);
+  const isArchived = (o: Order) => o.status === 'cancelled' || o.status === 'delivered';
+  const activeCount = useMemo(() => orders.filter((o) => !isArchived(o)).length, [orders]); // eslint-disable-line react-hooks/exhaustive-deps
   const archivedCount = orders.length - activeCount;
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      const inView = view === 'archived' ? order.status === 'cancelled' : order.status !== 'cancelled';
+      const inView = view === 'archived' ? isArchived(order) : !isArchived(order);
       if (!inView) return false;
       const q = searchQuery.toLowerCase();
       const client = clients[order.client_id];
@@ -82,7 +83,7 @@ export default function AdminOrdersPage() {
   const statusOptions = [
     { value: 'all', label: 'All Statuses' },
     ...Object.entries(ORDER_STATUS_LABELS)
-      .filter(([value]) => value !== 'draft' && value !== 'cancelled')
+      .filter(([value]) => value !== 'draft' && (view === 'archived' ? value === 'cancelled' || value === 'delivered' : value !== 'cancelled' && value !== 'delivered'))
       .map(([value, label]) => ({ value, label })),
   ];
 
@@ -156,7 +157,7 @@ export default function AdminOrdersPage() {
                 {view === 'archived' ? 'Archived orders' : 'Orders'} ({filteredOrders.length})
               </h2>
               {view === 'archived' && (
-                <p className="text-sm text-gray-500">Cancelled orders are archived automatically.</p>
+                <p className="text-sm text-gray-500">Delivered and cancelled orders are archived automatically.</p>
               )}
             </div>
           </CardHeader>

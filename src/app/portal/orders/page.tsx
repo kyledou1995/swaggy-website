@@ -89,7 +89,7 @@ export default function OrdersPage() {
   }, [router]);
 
   const tabOf = (o: Order): 'active' | 'drafts' | 'archived' =>
-    o.status === 'cancelled' ? 'archived' : o.status === 'draft' ? 'drafts' : 'active';
+    o.status === 'cancelled' || o.status === 'delivered' ? 'archived' : o.status === 'draft' ? 'drafts' : 'active';
   const activeCount = orders.filter((o) => tabOf(o) === 'active').length;
   const draftCount = orders.filter((o) => tabOf(o) === 'drafts').length;
   const archivedCount = orders.filter((o) => tabOf(o) === 'archived').length;
@@ -115,7 +115,7 @@ export default function OrdersPage() {
   const statusOptions = [
     { value: '', label: 'All Statuses' },
     ...Object.entries(ORDER_STATUS_LABELS)
-      .filter(([key]) => (tab === 'archived' ? key === 'cancelled' : tab === 'drafts' ? key === 'draft' : key !== 'cancelled' && key !== 'draft'))
+      .filter(([key]) => (tab === 'archived' ? key === 'cancelled' || key === 'delivered' : tab === 'drafts' ? key === 'draft' : !['cancelled', 'delivered', 'draft'].includes(key)))
       .map(([key, label]) => ({ value: key, label })),
   ];
 
@@ -169,7 +169,7 @@ export default function OrdersPage() {
         ))}
       </div>
       {tab === 'archived' && (
-        <p className="text-sm text-gray-500 mb-4">Cancelled orders are kept here for your records.</p>
+        <p className="text-sm text-gray-500 mb-4">Delivered and cancelled orders are kept here for your records.</p>
       )}
       {tab === 'drafts' && (
         <p className="text-sm text-gray-500 mb-4">Orders you started but haven&apos;t submitted yet. Pick up where you left off anytime.</p>
@@ -283,7 +283,7 @@ export default function OrdersPage() {
                 {orders.length === 0
                   ? "You haven't placed any orders yet. Create your first one!"
                   : tab === 'archived' && archivedCount === 0
-                    ? 'Cancelled orders will appear here.'
+                    ? 'Delivered and cancelled orders will appear here.'
                     : tab === 'drafts' && draftCount === 0
                       ? 'Unfinished orders are saved here automatically.'
                     : tab === 'active' && activeCount === 0

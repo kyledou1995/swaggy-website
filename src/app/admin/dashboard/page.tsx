@@ -223,7 +223,7 @@ export default function AdminDashboard() {
                 <CardBody>
                   <div className="space-y-4">
                     {orders
-                      .filter((o) => o.status !== 'cancelled')
+                      .filter((o) => o.status !== 'cancelled' && o.status !== 'delivered')
                       .sort(byLastActivity(lastActivity))
                       .slice(0, 5)
                       .map((order) => (

@@ -152,7 +152,7 @@ export default function PortalMessagesPage() {
 
         // Auto-select first thread with messages, or first thread
         if (conversationThreads.length > 0) {
-          const active = conversationThreads.filter(t => t.order.status !== 'cancelled');
+          const active = conversationThreads.filter(t => t.order.status !== 'cancelled' && t.order.status !== 'delivered');
           const pool = active.length ? active : conversationThreads;
           if (!active.length) setTab('archived');
           const firstWithMessages = pool.find(t => t.messages.length > 0);
@@ -245,7 +245,7 @@ export default function PortalMessagesPage() {
     }
   };
 
-  const isArchived = (t: ConversationThread) => t.order.status === 'cancelled';
+  const isArchived = (t: ConversationThread) => t.order.status === 'cancelled' || t.order.status === 'delivered';
   const activeThreads = threads.filter(t => !isArchived(t));
   const archivedThreads = threads.filter(isArchived);
   const unreadIn = (list: ConversationThread[]) => list.reduce((n, t) => n + t.unreadCount, 0);
@@ -366,7 +366,7 @@ export default function PortalMessagesPage() {
                     {searchQuery ? 'No matching conversations' : tab === 'archived' ? 'No archived conversations' : 'No active conversations'}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    {tab === 'archived' ? 'Conversations for cancelled orders appear here.' : 'Messages will appear here when you have orders'}
+                    {tab === 'archived' ? 'Conversations for delivered and cancelled orders appear here.' : 'Messages will appear here when you have orders'}
                   </p>
                 </div>
               ) : (<>

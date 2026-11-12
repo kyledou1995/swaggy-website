@@ -112,7 +112,7 @@ export default function AdminMessagesPage() {
         setThreads(conversationThreads);
 
         if (conversationThreads.length > 0) {
-          const active = conversationThreads.filter(t => t.order.status !== 'cancelled');
+          const active = conversationThreads.filter(t => t.order.status !== 'cancelled' && t.order.status !== 'delivered');
           const pool = active.length ? active : conversationThreads;
           if (!active.length) setTab('archived');
           const firstWithMessages = pool.find(t => t.messages.length > 0);
@@ -201,8 +201,9 @@ export default function AdminMessagesPage() {
     }
   };
 
-  const activeThreads = threads.filter(t => t.order.status !== 'cancelled');
-  const archivedThreads = threads.filter(t => t.order.status === 'cancelled');
+  const isArchivedStatus = (s: string) => s === 'cancelled' || s === 'delivered';
+  const activeThreads = threads.filter(t => !isArchivedStatus(t.order.status));
+  const archivedThreads = threads.filter(t => isArchivedStatus(t.order.status));
   const statusVariant = (status: string) =>
     status === 'cancelled' || status === 'action_required' ? 'error'
       : status === 'delivered' || status === 'sample_approved' ? 'success'
@@ -295,7 +296,7 @@ export default function AdminMessagesPage() {
                     <p className="text-sm text-gray-500">
                       {searchQuery ? 'No matching conversations' : tab === 'archived' ? 'No archived conversations' : 'No active conversations'}
                     </p>
-                    {tab === 'archived' && !searchQuery && <p className="text-xs text-gray-400 mt-1">Conversations for cancelled orders appear here.</p>}
+                    {tab === 'archived' && !searchQuery && <p className="text-xs text-gray-400 mt-1">Conversations for delivered and cancelled orders appear here.</p>}
                   </div>
                 ) : (
                   filteredThreads.map((thread) => (

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { byLastActivity, fetchLastActivity } from '@/lib/order-activity';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, TrendingUp, Package, AlertCircle, CheckCircle } from 'lucide-react';
@@ -61,6 +62,7 @@ const StatCard = ({
 export default function DashboardPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [lastActivity, setLastActivity] = useState<Record<string, string>>({});
   const [userId, setUserId] = useState('');
   const unreadOrderIds = useUnreadOrderIds(userId || undefined);
   const [userName, setUserName] = useState('');
@@ -107,6 +109,7 @@ export default function DashboardPage() {
         .order('created_at', { ascending: false });
 
       setOrders(userOrders || []);
+      setLastActivity(await fetchLastActivity(supabase, (userOrders || []) as Order[]));
       setLoading(false);
     }
 
@@ -121,7 +124,10 @@ export default function DashboardPage() {
   ).length;
   const awaitingActionCount = orders.filter((o) => o.status === 'action_required').length;
   const deliveredCount = orders.filter((o) => o.status === 'delivered').length;
-  const recentOrders = orders.slice(0, 5);
+  const recentOrders = orders
+    .filter((o) => o.status !== 'cancelled' && o.status !== 'delivered')
+    .sort(byLastActivity(lastActivity))
+    .slice(0, 5);
 
   return (
     <PortalLayout
@@ -179,10 +185,14 @@ export default function DashboardPage() {
             <CardBody>
               <div className="text-center py-12">
                 <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders yet</h3>
-                <p className="text-gray-600 mb-6">Create your first order to get started.</p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">{orders.length ? 'No active orders' : 'No orders yet'}</h3>
+                <p className="text-gray-600 mb-6">
+                  {orders.length
+                    ? 'Delivered and cancelled orders are in the Archived tab under My Orders.'
+                    : 'Create your first order to get started.'}
+                </p>
                 <Link href="/portal/orders/new">
-                  <Button variant="primary">Create Your First Order</Button>
+                  <Button variant="primary">{orders.length ? 'Start a New Order' : 'Create Your First Order'}</Button>
                 </Link>
               </div>
             </CardBody>
