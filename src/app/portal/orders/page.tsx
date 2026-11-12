@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { DDPTerm } from '@/components/ui/DDPTerm';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Filter, Package } from 'lucide-react';
+import { Archive, FileEdit, Filter, Package } from 'lucide-react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -37,6 +37,9 @@ export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [productFilter, setProductFilter] = useState<string>('');
+  const [tab, setTab] = useState<'active' | 'drafts' | 'archived'>('active');
+  /** Latest activity per order: status updates, messages, or edits to the order. */
+  const [lastActivity, setLastActivity] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const supabase = createClient();
@@ -72,27 +75,73 @@ export default function OrdersPage() {
         .eq('client_id', user.id)
         .order('created_at', { ascending: false });
 
-      setOrders(userOrders || []);
+      const list = (userOrders || []) as Order[];
+      setOrders(list);
+
+      // Most recent activity per order (status updates + messages + order edits)
+      const ids = list.map((o) => o.id);
+      const latest: Record<string, string> = {};
+      const bump = (id: string, at?: string | null) => {
+        if (at && (!latest[id] || at > latest[id])) latest[id] = at;
+      };
+      list.forEach((o) => {
+        bump(o.id, o.updated_at ? new Date(o.updated_at).toISOString() : null);
+        bump(o.id, new Date(o.created_at).toISOString());
+      });
+      if (ids.length) {
+        const [upd, msgs] = await Promise.all([
+          supabase.from('order_updates').select('order_id, created_at').in('order_id', ids),
+          supabase.from('order_messages').select('order_id, created_at').in('order_id', ids),
+        ]);
+        [...(upd.data || []), ...(msgs.data || [])].forEach((r: { order_id: string; created_at: string }) =>
+          bump(r.order_id, new Date(r.created_at).toISOString())
+        );
+      }
+      setLastActivity(latest);
       setLoading(false);
     }
 
     loadData();
   }, [router]);
 
+  const tabOf = (o: Order): 'active' | 'drafts' | 'archived' =>
+    o.status === 'cancelled' ? 'archived' : o.status === 'draft' ? 'drafts' : 'active';
+  const activeCount = orders.filter((o) => tabOf(o) === 'active').length;
+  const draftCount = orders.filter((o) => tabOf(o) === 'drafts').length;
+  const archivedCount = orders.filter((o) => tabOf(o) === 'archived').length;
+
   const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      const matchesSearch =
-        (order.order_number || order.id).toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.product_description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = !statusFilter || order.status === statusFilter;
-      const matchesProduct = !productFilter || order.product_type === productFilter;
-      return matchesSearch && matchesStatus && matchesProduct;
-    });
-  }, [orders, searchTerm, statusFilter, productFilter]);
+    const term = searchTerm.toLowerCase();
+    return orders
+      .filter((order) => {
+        if (tabOf(order) !== tab) return false;
+        const matchesSearch =
+          (order.order_number || order.id).toLowerCase().includes(term) ||
+          (order.product_description || '').toLowerCase().includes(term) ||
+          (order.product_type || '').toLowerCase().includes(term);
+        const matchesStatus = !statusFilter || order.status === statusFilter;
+        const matchesProduct = !productFilter || order.product_type === productFilter;
+        return matchesSearch && matchesStatus && matchesProduct;
+      })
+      // Most recently updated first
+      .sort((a, b) => (lastActivity[b.id] || b.created_at).localeCompare(lastActivity[a.id] || a.created_at));
+  }, [orders, searchTerm, statusFilter, productFilter, tab, lastActivity]);
+
+  const updatedAgo = (iso?: string) => {
+    if (!iso) return '';
+    const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+    const d = Math.floor(s / 86400);
+    return d === 1 ? 'yesterday' : d < 30 ? `${d} days ago` : new Date(iso).toLocaleDateString();
+  };
 
   const statusOptions = [
     { value: '', label: 'All Statuses' },
-    ...Object.entries(ORDER_STATUS_LABELS).map(([key, label]) => ({ value: key, label })),
+    ...Object.entries(ORDER_STATUS_LABELS)
+      .filter(([key]) => (tab === 'archived' ? key === 'cancelled' : tab === 'drafts' ? key === 'draft' : key !== 'cancelled' && key !== 'draft'))
+      .map(([key, label]) => ({ value: key, label })),
   ];
 
   const productOptions = [
@@ -119,6 +168,37 @@ export default function OrdersPage() {
           </Link>
         </div>
       </div>
+
+      <div className="flex gap-1 mb-4 border-b border-gray-200">
+        {([
+          ['active', 'Active', activeCount],
+          ['drafts', 'Drafts', draftCount],
+          ['archived', 'Archived', archivedCount],
+        ] as const).map(([key, label, count]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => {
+              setTab(key);
+              setStatusFilter('');
+            }}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+              tab === key ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            {key === 'archived' && <Archive className="w-4 h-4" />}
+            {key === 'drafts' && <FileEdit className="w-4 h-4" />}
+            {label}
+            <span className={`text-xs rounded-full px-2 py-0.5 ${tab === key ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{count}</span>
+          </button>
+        ))}
+      </div>
+      {tab === 'archived' && (
+        <p className="text-sm text-gray-500 mb-4">Cancelled orders are kept here for your records.</p>
+      )}
+      {tab === 'drafts' && (
+        <p className="text-sm text-gray-500 mb-4">Orders you started but haven&apos;t submitted yet. Pick up where you left off anytime.</p>
+      )}
 
       <Card className="mb-8">
         <CardBody>
@@ -174,6 +254,9 @@ export default function OrdersPage() {
                         {ORDER_STATUS_LABELS[order.status] || order.status}
                       </Badge>
                       <OrderFlags order={order} hasUpdate={unreadOrderIds.has(order.id)} />
+                      {lastActivity[order.id] && (
+                        <span className="text-xs text-gray-400 sm:ml-auto">Updated {updatedAgo(lastActivity[order.id])}</span>
+                      )}
                     </div>
                     <p className="text-gray-600 mb-2">{order.product_type}</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -214,11 +297,23 @@ export default function OrdersPage() {
           <CardBody>
             <div className="text-center py-12">
               <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders found</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {tab === 'archived' && archivedCount === 0
+                  ? 'No archived orders'
+                  : tab === 'drafts' && draftCount === 0
+                    ? 'No drafts'
+                    : 'No orders found'}
+              </h3>
               <p className="text-gray-600 mb-6">
                 {orders.length === 0
                   ? "You haven't placed any orders yet. Create your first one!"
-                  : 'Try adjusting your filters.'}
+                  : tab === 'archived' && archivedCount === 0
+                    ? 'Cancelled orders will appear here.'
+                    : tab === 'drafts' && draftCount === 0
+                      ? 'Unfinished orders are saved here automatically.'
+                    : tab === 'active' && activeCount === 0
+                      ? 'You have no active orders right now.'
+                      : 'Try adjusting your filters.'}
               </p>
               <Link href="/portal/orders/new">
                 <Button variant="primary">Create New Order</Button>
