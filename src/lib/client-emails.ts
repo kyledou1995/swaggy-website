@@ -54,12 +54,15 @@ function attachmentsHtml(urls: string[] | null | undefined) {
       return 'file';
     }
   };
+  // File names only — no links. Files can only be opened/downloaded from the signed-in portal.
+  // A zero-width space after each dot stops mail apps auto-linking names like "file.zip".
+  const label = (u: string) => esc(name(u)).replace(/\./g, '.&#8203;');
   return `<div style="margin:0 0 22px"><div style="font:600 12px ${FONT};color:#737373;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Attachments (${list.length})</div>${list
     .map(
       (u) =>
-        `<a href="${u}" style="display:block;margin:0 0 6px;padding:10px 12px;border:1px solid #e5e5e5;border-radius:8px;font:500 13px ${FONT};color:#059669;text-decoration:none">&#128206; ${esc(name(u))}</a>`
+        `<div style="margin:0 0 6px;padding:10px 12px;border:1px solid #e5e5e5;border-radius:8px;background:#fafafa;font:500 13px ${FONT};color:#404040">&#128206; ${label(u)}</div>`
     )
-    .join('')}</div>`;
+    .join('')}<div style="margin-top:8px;font:12.5px/1.5 ${FONT};color:#737373">Sign in to your portal to view ${list.length === 1 ? 'this file' : 'these files'}.</div></div>`;
 }
 
 const money = (n: number | null | undefined) =>
