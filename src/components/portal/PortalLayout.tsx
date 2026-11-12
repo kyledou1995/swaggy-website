@@ -114,7 +114,11 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
 
     fetchBadgeCounts();
     const interval = setInterval(fetchBadgeCounts, 30000);
-    return () => clearInterval(interval);
+    window.addEventListener('merchin:notifications-changed', fetchBadgeCounts);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('merchin:notifications-changed', fetchBadgeCounts);
+    };
   }, [userId]);
 
   const handleLogout = async () => {

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { ORDER_STATUS_LABELS, PRODUCT_TYPES } from '@/lib/constants';
+import { OrderFlags, useUnreadOrderIds } from '@/components/portal/OrderWhatsNew';
 import { createClient } from '@/lib/supabase';
 import { Skeleton, stagger } from '@/components/ui/Animated';
 import { Order } from '@/types';
@@ -27,6 +28,7 @@ export default function OrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [userId, setUserId] = useState('');
+  const unreadOrderIds = useUnreadOrderIds(userId || undefined);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -170,6 +172,7 @@ export default function OrdersPage() {
                       <Badge variant={getStatusVariant(order.status) as any}>
                         {ORDER_STATUS_LABELS[order.status] || order.status}
                       </Badge>
+                      <OrderFlags order={order} hasUpdate={unreadOrderIds.has(order.id)} />
                     </div>
                     <p className="text-gray-600 mb-2">{order.product_type}</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">

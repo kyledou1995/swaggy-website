@@ -46,9 +46,13 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
   useEffect(() => {
     loadNotifications();
 
-    // Poll every 30 seconds for new notifications
+    // Poll every 30 seconds for new notifications; refresh right away when a page marks some read
     const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
+    window.addEventListener('merchin:notifications-changed', loadNotifications);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('merchin:notifications-changed', loadNotifications);
+    };
   }, [userId]);
 
   // Close panel when clicking outside
@@ -231,8 +235,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
                         <Link
                           href={`/portal/orders/${notif.order_id}`}
                           onClick={(e) => {
+                            // Left unread on purpose: the order page shows it under "What's new", then clears it.
                             e.stopPropagation();
-                            if (!notif.is_read) markAsRead(notif.id);
                             setIsOpen(false);
                           }}
                           className="text-[10px] text-green-600 hover:text-green-700 font-medium"

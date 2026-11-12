@@ -15,6 +15,7 @@ import { Celebration } from '@/components/ui/Celebration';
 import { Skeleton } from '@/components/ui/Animated';
 import { ShipmentTracker } from '@/components/portal/ShipmentTracker';
 import { InfoRequestsCard } from '@/components/portal/InfoRequestsCard';
+import { NewPill, OrderWhatsNew, useOrderUnread } from '@/components/portal/OrderWhatsNew';
 import { AttachButton, AttachmentList, PendingAttachments, useMessageAttachments } from '@/components/ui/MessageAttachments';
 import { createClient } from '@/lib/supabase';
 import { ORDER_STATUS_LABELS, ORDER_TIMELINE } from '@/lib/constants';
@@ -67,6 +68,7 @@ export default function OrderDetailPage() {
   const messagesBoxRef = useRef<HTMLDivElement>(null);
   const msgAttachments = useMessageAttachments();
   const [sendingMessage, setSendingMessage] = useState(false);
+  const unread = useOrderUnread(order?.id, user?.id);
 
   // Show a one-time celebration for a milestone (remembered per browser).
   const celebrateOnce = useCallback((key: string, title: string, message: string) => {
@@ -246,6 +248,16 @@ export default function OrderDetailPage() {
   }
 
   const currentStepIndex = ORDER_TIMELINE.indexOf(order.status);
+
+  // Messages from Merchin that arrived since the client last looked at this order
+  const newAdminMessageIds = new Set(
+    unread.since
+      ? allMessages
+          .filter((m) => m.sender_role === 'admin' && new Date(m.created_at) >= unread.since!)
+          .map((m) => m.id)
+      : []
+  );
+  const firstNewMessageId = allMessages.find((m) => newAdminMessageIds.has(m.id))?.id;
 
   const timelineSteps: TimelineStep[] = ORDER_TIMELINE.map((status) => {
     const statusLabel = ORDER_STATUS_LABELS[status];
@@ -782,6 +794,11 @@ export default function OrderDetailPage() {
           </div>
         )}
 
+        {/* What changed since the last visit + the client's next step */}
+        {order.status !== 'cancelled' && (
+          <OrderWhatsNew order={order} items={unread.items} onDismiss={unread.dismiss} />
+        )}
+
         {/* Information requested by the Merchin team */}
         {user && (
           <InfoRequestsCard
@@ -861,11 +878,14 @@ export default function OrderDetailPage() {
         </Card>
 
         {/* Status Timeline */}
-        <Card>
+        <Card id="progress" className="scroll-mt-24">
           <CardHeader>
-            <h2 className="text-lg font-bold text-gray-900">
-              Order Progress
-            </h2>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-lg font-bold text-gray-900">
+                Order Progress
+              </h2>
+              {unread.hasStatusUpdate && <NewPill label={`Updated · ${ORDER_STATUS_LABELS[order.status]}`} />}
+            </div>
           </CardHeader>
           <CardBody>
             <StatusTimeline
@@ -877,7 +897,7 @@ export default function OrderDetailPage() {
 
         {/* Live shipment tracker */}
         {order.status === 'in_transit' && (
-          <Card className="animate-fade-up">
+          <Card id="tracker" className="animate-fade-up scroll-mt-24">
             <CardBody>
               <ShipmentTracker
                 method={order.selected_shipping}
@@ -1207,7 +1227,7 @@ export default function OrderDetailPage() {
 
         {/* Quote Review & Selection */}
         {(order.status === 'quote_ready' || changingQuote) && order.quote_air_price_per_unit && order.quote_ocean_price_per_unit && (
-          <Card className="border-2 border-yellow-300 bg-yellow-50">
+          <Card id="quote" className="border-2 border-yellow-300 bg-yellow-50 scroll-mt-24">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-yellow-600" />
@@ -1368,7 +1388,7 @@ export default function OrderDetailPage() {
 
         {/* Deposit Payment Required */}
         {order.status === 'deposit_required' && order.deposit_amount && (
-          <Card className="border-2 border-orange-300 bg-orange-50">
+          <Card id="deposit" className="border-2 border-orange-300 bg-orange-50 scroll-mt-24">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-orange-600" />
@@ -1415,7 +1435,7 @@ export default function OrderDetailPage() {
           const depositPaid = order.deposit_amount || 0;
           const remainingBalance = order.final_payment_amount || (orderTotal - depositPaid);
           return (
-            <Card className="border-2 border-orange-300 bg-orange-50">
+            <Card id="final-payment" className="border-2 border-orange-300 bg-orange-50 scroll-mt-24">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <CreditCard className="w-5 h-5 text-orange-600" />
@@ -1465,7 +1485,7 @@ export default function OrderDetailPage() {
 
         {/* Sample Production — Client reviews pricing and enters quantity */}
         {order.status === 'sample_production' && order.sample_price_per_unit && (
-          <Card className="border-2 border-purple-200">
+          <Card id="samples" className="border-2 border-purple-200 scroll-mt-24">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Package className="w-5 h-5 text-purple-600" />
@@ -1557,7 +1577,7 @@ export default function OrderDetailPage() {
 
         {/* Awaiting Sample Approval — Client reviews photos */}
         {order.status === 'sample_approval_pending' && (
-          <Card className="border-2 border-purple-200">
+          <Card id="sample-review" className="border-2 border-purple-200 scroll-mt-24">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Camera className="w-5 h-5 text-purple-600" />
@@ -1702,23 +1722,6 @@ export default function OrderDetailPage() {
           </Card>
         )}
 
-        {/* Action Required */}
-        {order.status === 'action_required' && (
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-bold text-gray-900 text-red-600">
-                Action Required
-              </h2>
-            </CardHeader>
-            <CardBody>
-              <p className="text-gray-700">
-                We need additional information from you to proceed with this
-                order. Please check the messages section below and respond as
-                soon as possible.
-              </p>
-            </CardBody>
-          </Card>
-        )}
 
         {/* Void Order */}
         {canVoidOrder && !showVoidConfirm && (
@@ -1774,11 +1777,16 @@ export default function OrderDetailPage() {
         )}
 
         {/* Messages */}
-        <Card>
+        <Card id="messages" className="scroll-mt-24">
           <CardHeader>
-            <h2 className="text-lg font-bold text-gray-900">
-              Messages ({allMessages.length})
-            </h2>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-lg font-bold text-gray-900">
+                Messages ({allMessages.length})
+              </h2>
+              {newAdminMessageIds.size > 0 && (
+                <NewPill label={`${newAdminMessageIds.size} new from Merchin`} />
+              )}
+            </div>
           </CardHeader>
           <CardBody>
             <div ref={messagesBoxRef} className="space-y-4 max-h-96 overflow-y-auto mb-6 pb-4">
@@ -1789,8 +1797,15 @@ export default function OrderDetailPage() {
                 </p>
               ) : (
                 allMessages.map((msg) => (
+                  <React.Fragment key={msg.id}>
+                  {msg.id === firstNewMessageId && (
+                    <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-wide text-blue-600">
+                      <span className="flex-1 h-px bg-blue-200" />
+                      New
+                      <span className="flex-1 h-px bg-blue-200" />
+                    </div>
+                  )}
                   <div
-                    key={msg.id}
                     className={`flex gap-3 animate-fade-up ${
                       msg.sender_role === 'admin'
                         ? 'flex-row'
@@ -1818,7 +1833,9 @@ export default function OrderDetailPage() {
                       <div
                         className={`rounded-lg p-3 ${
                           msg.sender_role === 'admin'
-                            ? 'bg-gray-100 text-gray-900'
+                            ? newAdminMessageIds.has(msg.id)
+                              ? 'bg-blue-50 text-gray-900 ring-2 ring-blue-300'
+                              : 'bg-gray-100 text-gray-900'
                             : 'bg-green-100 text-gray-900'
                         }`}
                       >
@@ -1826,10 +1843,12 @@ export default function OrderDetailPage() {
                         <AttachmentList urls={msg.attachments} />
                       </div>
                       <p className="text-xs text-gray-500 mt-1 px-3">
+                        {newAdminMessageIds.has(msg.id) && <span className="font-semibold text-blue-600 mr-1.5">New ·</span>}
                         {new Date(msg.created_at).toLocaleString()}
                       </p>
                     </div>
                   </div>
+                  </React.Fragment>
                 ))
               )}
             </div>
@@ -1838,6 +1857,7 @@ export default function OrderDetailPage() {
           <CardFooter>
             <div className="w-full space-y-3">
               <Textarea
+                id="message-input"
                 placeholder="Type your message..."
                 rows={3}
                 value={newMessage}

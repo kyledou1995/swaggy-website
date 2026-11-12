@@ -74,6 +74,12 @@ body {
 .animate-fade-up { animation: merchin-fade-up 0.5s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes merchin-fade-in { from { opacity: 0; } to { opacity: 1; } }
 .animate-fade-in { animation: merchin-fade-in 0.18s ease-out both; }
+/* Briefly highlights a section the client jumped to from "What's new" / "Next step" */
+@keyframes merchin-flash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  20%, 60% { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.45); }
+}
+.merchin-flash { animation: merchin-flash 2.2s ease-in-out; }
 @keyframes merchin-slide-in-right {
   from { opacity: 0; transform: translateX(32px); }
   to { opacity: 1; transform: none; }

@@ -9,6 +9,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
+import { OrderFlags, useUnreadOrderIds } from '@/components/portal/OrderWhatsNew';
 import { createClient } from '@/lib/supabase';
 import { Order } from '@/types';
 import { CountUp, Skeleton, stagger } from '@/components/ui/Animated';
@@ -61,6 +62,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [userId, setUserId] = useState('');
+  const unreadOrderIds = useUnreadOrderIds(userId || undefined);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -196,7 +198,10 @@ export default function DashboardPage() {
                   style={stagger(i, 70, 200)}
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">#{order.order_number || order.id.substring(0, 8)}</p>
+                    <p className="text-sm font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
+                      #{order.order_number || order.id.substring(0, 8)}
+                      <OrderFlags order={order} hasUpdate={unreadOrderIds.has(order.id)} />
+                    </p>
                     <p className="text-xs text-gray-500 truncate">
                       {order.status === 'draft'
                         ? `${order.product_type || 'Untitled'} · Tap to continue`
@@ -225,7 +230,10 @@ export default function DashboardPage() {
                   {recentOrders.map((order: Order, i) => (
                     <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors animate-fade-up" style={stagger(i, 70, 200)}>
                       <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                        {order.order_number || order.id.substring(0, 8)}
+                        <div className="flex flex-col items-start gap-1">
+                          {order.order_number || order.id.substring(0, 8)}
+                          <OrderFlags order={order} hasUpdate={unreadOrderIds.has(order.id)} />
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">{order.product_type}</td>
                       <td className="px-6 py-4 text-sm text-gray-700">{order.quantity ? order.quantity.toLocaleString() : '—'}</td>
