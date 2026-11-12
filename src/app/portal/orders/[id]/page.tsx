@@ -68,6 +68,7 @@ export default function OrderDetailPage() {
   const closeCelebration = useCallback(() => setCelebration(null), []);
   const messagesBoxRef = useRef<HTMLDivElement>(null);
   const msgAttachments = useMessageAttachments();
+  const changeAttachments = useMessageAttachments();
   const [sendingMessage, setSendingMessage] = useState(false);
   const unread = useOrderUnread(order?.id, user?.id);
 
@@ -387,33 +388,41 @@ export default function OrderDetailPage() {
         setApprovalLoading(false);
       }
     } else {
-      if (!changesMessage.trim()) {
+      const changesText = changesMessage.trim();
+      if (!changesText && changeAttachments.files.length === 0) {
         setShowChangesForm(true);
         return;
       }
 
       setChangesLoading(true);
       try {
-        // Update order status to action_required
+        const attachmentUrls = changeAttachments.files.length
+          ? await changeAttachments.uploadAll(user.id, orderId)
+          : [];
+        const fileNote = attachmentUrls.length ? ` (${attachmentUrls.length} file${attachmentUrls.length === 1 ? '' : 's'} attached)` : '';
+        const summary = changesText || `See attached file${attachmentUrls.length === 1 ? '' : 's'}.`;
+
+        // Back to Merchin: revised samples are needed. The previous photos stay in the message history.
         await supabase
           .from('orders')
-          .update({ status: 'action_required' })
+          .update({ status: 'sample_approval_pending', sample_images: [], sample_description: null, updated_at: new Date().toISOString() })
           .eq('id', orderId);
 
         await supabase.from('order_updates').insert([{
           order_id: orderId,
-          status: 'action_required',
-          message: `Client requested changes to samples: ${changesMessage}`,
+          status: 'sample_approval_pending',
+          message: `Client requested changes to samples: ${summary}${fileNote}`,
           created_by: user.id,
         }]);
 
-        // Send the changes message in chat
+        // Send the changes message in chat (with any reference photos / PDFs)
+        const chatText = `Sample change request: ${summary}`;
         await supabase.from('order_messages').insert([{
           order_id: orderId,
           sender_id: user.id,
           sender_role: 'client',
-          message: `Sample change request: ${changesMessage}`,
-          attachments: [],
+          message: chatText,
+          attachments: attachmentUrls,
         }]);
 
         const response: OrderMessage = {
@@ -421,25 +430,26 @@ export default function OrderDetailPage() {
           order_id: orderId,
           sender_id: user.id,
           sender_role: 'client',
-          message: `Sample change request: ${changesMessage}`,
-          attachments: [],
+          message: chatText,
+          attachments: attachmentUrls,
           created_at: new Date().toISOString(),
         };
         setAllMessages([...allMessages, response]);
 
         // Notify admins
         await notifyAdmins({
-          email: { event: 'sample_changes_requested', message: changesMessage },
+          email: { event: 'sample_changes_requested', message: summary, attachments: attachmentUrls },
           orderId,
           type: 'order_status',
           title: `Sample Changes Requested — #${order!.order_number || orderId.slice(0, 8)}`,
-          body: `${user.full_name} requested changes to the samples: "${changesMessage}"`,
+          body: `${user.full_name} requested changes to the samples: "${summary}"${fileNote}`,
           supabaseClient: supabase,
         });
 
-        setOrder({ ...order!, status: 'action_required' });
+        setOrder({ ...order!, status: 'sample_approval_pending', sample_images: [], sample_description: null });
         setShowChangesForm(false);
         setChangesMessage('');
+        changeAttachments.clear();
       } catch (error) {
         console.error('Error requesting changes:', error);
       } finally {
@@ -1576,8 +1586,25 @@ export default function OrderDetailPage() {
           </Card>
         )}
 
+        {/* Awaiting Sample Approval, but samples aren't ready yet (just paid, or revising after a change request) */}
+        {order.status === 'sample_approval_pending' && !(order.sample_images?.length || order.sample_shipped) && (
+          <Card id="sample-review" className="border-2 border-purple-200 scroll-mt-24">
+            <CardBody className="flex items-start gap-3">
+              <Camera className="w-6 h-6 text-purple-600 shrink-0 mt-0.5" />
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">We&apos;re preparing your samples</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {order.sample_physical_requested
+                    ? 'Your physical samples are being prepared. We’ll let you know as soon as they ship.'
+                    : 'Our team is working on your samples. You’ll get an email as soon as photos are ready for your review.'}
+                </p>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
         {/* Awaiting Sample Approval — Client reviews photos */}
-        {order.status === 'sample_approval_pending' && (
+        {order.status === 'sample_approval_pending' && !!(order.sample_images?.length || order.sample_shipped) && (
           <Card id="sample-review" className="border-2 border-purple-200 scroll-mt-24">
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -1650,25 +1677,41 @@ export default function OrderDetailPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       What changes are needed?
                     </label>
-                    <textarea
-                      value={changesMessage}
-                      onChange={(e) => setChangesMessage(e.target.value)}
-                      placeholder="Describe the changes you'd like to the sample (e.g., color adjustment, material change, logo placement, etc.)"
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
-                    />
+                    <div
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        changeAttachments.add(e.dataTransfer.files);
+                      }}
+                    >
+                      <textarea
+                        value={changesMessage}
+                        onChange={(e) => setChangesMessage(e.target.value)}
+                        placeholder="Describe the changes you'd like to the sample (e.g., color adjustment, material change, logo placement, etc.)"
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                      />
+                      <div className="mt-2 space-y-2">
+                        <PendingAttachments files={changeAttachments.files} onRemove={changeAttachments.remove} />
+                        {changeAttachments.error && <p className="text-xs text-red-600">{changeAttachments.error}</p>}
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <AttachButton onFiles={changeAttachments.add} disabled={changesLoading} label="Attach photo or PDF" />
+                          <span className="text-xs text-gray-500">Reference photos, marked-up mockups, PDFs… up to 25 MB each.</span>
+                        </div>
+                      </div>
+                    </div>
                     <div className="flex gap-3 mt-3">
                       <Button
                         variant="primary"
                         isLoading={changesLoading}
                         onClick={() => handleApproval(false)}
-                        disabled={!changesMessage.trim()}
+                        disabled={(!changesMessage.trim() && changeAttachments.files.length === 0) || changesLoading}
                       >
                         Submit Change Request
                       </Button>
                       <Button
                         variant="secondary"
-                        onClick={() => { setShowChangesForm(false); setChangesMessage(''); }}
+                        onClick={() => { setShowChangesForm(false); setChangesMessage(''); changeAttachments.clear(); }}
                       >
                         Cancel
                       </Button>

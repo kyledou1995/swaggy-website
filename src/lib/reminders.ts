@@ -118,7 +118,8 @@ function pendingItems(
         else if (o.sample_price_per_unit && o.sample_quantity_requested) add(o, 'sample_payment', since);
         break;
       case 'sample_approval_pending':
-        add(o, 'sample_review', since);
+        // Only once there's something to review (photos shared or physical samples shipped)
+        if (o.sample_images?.length || o.sample_shipped) add(o, 'sample_review', since);
         break;
       case 'final_payment_required':
         if (!o.final_payment_paid) add(o, 'final_payment', since);

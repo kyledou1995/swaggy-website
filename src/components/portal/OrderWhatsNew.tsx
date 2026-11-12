@@ -110,6 +110,13 @@ export function getNextStep(order: Order): NextStep {
         cta: { label: 'Pay for samples', target: 'samples' },
       };
     case 'sample_approval_pending':
+      if (!(order.sample_images?.length || order.sample_shipped))
+        return waiting(
+          'We’re preparing your samples',
+          order.sample_physical_requested
+            ? 'Nothing needed from you right now. We’ll let you know when your physical samples ship.'
+            : 'Nothing needed from you right now. We’ll email you as soon as sample photos are ready to review.'
+        );
       return {
         tone: 'action',
         title: 'Review your samples',
