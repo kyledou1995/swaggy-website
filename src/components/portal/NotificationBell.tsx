@@ -19,6 +19,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
   const isMarkingRef = useRef(false);
   const prevUnreadRef = useRef<number | null>(null);
   const [ringKey, setRingKey] = useState(0);
+  const [justRead, setJustRead] = useState<Set<string>>(new Set());
 
   // Load notifications
   const loadNotifications = async () => {
@@ -150,8 +151,15 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
       {/* Bell Button */}
       <button
         onClick={() => {
+          if (!isOpen) {
+            // Opening the bell marks everything as read; keep the "new" dots visible while it's open
+            setJustRead(new Set(notifications.filter((n) => !n.is_read).map((n) => n.id)));
+            if (unreadCount > 0) markAllAsRead();
+            else loadNotifications();
+          } else {
+            setJustRead(new Set());
+          }
           setIsOpen(!isOpen);
-          if (!isOpen) loadNotifications();
         }}
         className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
         aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
@@ -210,7 +218,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
                   key={notif.id}
                   style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
                   className={`flex items-start gap-3 px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer animate-slide-in-right ${
-                    !notif.is_read ? 'bg-green-50/40' : ''
+                    !notif.is_read || justRead.has(notif.id) ? 'bg-green-50/40' : ''
                   }`}
                   onClick={() => {
                     if (!notif.is_read) markAsRead(notif.id);
@@ -221,10 +229,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId }) =>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <p className={`text-sm ${!notif.is_read ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
+                      <p className={`text-sm ${!notif.is_read || justRead.has(notif.id) ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
                         {notif.title}
                       </p>
-                      {!notif.is_read && (
+                      {(!notif.is_read || justRead.has(notif.id)) && (
                         <span className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0 mt-1.5" />
                       )}
                     </div>

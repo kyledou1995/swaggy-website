@@ -19,10 +19,11 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import type { AppNotification, Order } from '@/types';
+import { NOTIFICATIONS_CHANGED, RECENT_MS, getClientUnreadCounts, getLastSeen, markOrderSeen } from '@/lib/order-reads';
 
 /* ─────────────────────────── helpers ─────────────────────────── */
 
-export const NOTIFICATIONS_CHANGED = 'merchin:notifications-changed';
+export { NOTIFICATIONS_CHANGED };
 
 /** Scroll to a section of the order page and briefly highlight it. */
 export function jumpToSection(id: string) {
@@ -160,6 +161,7 @@ export function getNextStep(order: Order): NextStep {
  */
 export function useOrderUnread(orderId: string | undefined, userId: string | undefined) {
   const [items, setItems] = useState<AppNotification[]>([]);
+  const [lastSeen, setLastSeen] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [hidden, setHidden] = useState(false);
 
@@ -168,30 +170,39 @@ export function useOrderUnread(orderId: string | undefined, userId: string | und
     let cancelled = false;
     (async () => {
       const supabase = createClient();
+      const seenAt = await getLastSeen(supabase, userId, orderId);
+      // Everything since the client last opened this order (never opened: the last 14 days)
+      const after = seenAt || new Date(Date.now() - RECENT_MS).toISOString();
       const { data } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_id', userId)
         .eq('order_id', orderId)
         .eq('target_role', 'client')
-        .eq('is_read', false)
-        .order('created_at', { ascending: false });
+        .gt('created_at', after)
+        .order('created_at', { ascending: false })
+        .limit(20);
       if (cancelled) return;
       const list = (data as AppNotification[]) || [];
+      setLastSeen(seenAt);
       setItems(list);
       setLoaded(true);
-      if (list.length) {
-        await supabase.from('notifications').update({ is_read: true }).in('id', list.map((n) => n.id));
-        window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED));
-      }
+      // Opening the order = seen: clear its bell notifications and the sidebar counts
+      const unreadIds = list.filter((n) => !n.is_read).map((n) => n.id);
+      if (unreadIds.length) await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds);
+      await markOrderSeen(userId, orderId, supabase);
     })();
     return () => {
       cancelled = true;
     };
   }, [orderId, userId]);
 
-  /** Earliest unread update (small buffer so the triggering message is included). */
-  const since = items.length ? new Date(new Date(items[items.length - 1].created_at).getTime() - 2 * 60 * 1000) : null;
+  /** Messages/updates newer than this are "new" on this visit. */
+  const since = lastSeen
+    ? new Date(lastSeen)
+    : items.length
+      ? new Date(new Date(items[items.length - 1].created_at).getTime() - 2 * 60 * 1000)
+      : null;
   const hasStatusUpdate = items.some((n) => n.type !== 'new_message');
   // "Got it" hides the summary; message highlights stay for this visit.
   return { items: hidden ? [] : items, loaded, since, hasStatusUpdate, dismiss: () => setHidden(true) };
@@ -377,21 +388,15 @@ export function NewPill({ label = 'New' }: { label?: string }) {
   );
 }
 
-/** Order ids that have unread updates for this client (for list badges). */
+/** Order ids that have updates the client hasn't seen yet (for list badges). */
 export function useUnreadOrderIds(userId: string | undefined) {
   const [ids, setIds] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
     const load = async () => {
-      const { data } = await createClient()
-        .from('notifications')
-        .select('order_id')
-        .eq('user_id', userId)
-        .eq('target_role', 'client')
-        .eq('is_read', false)
-        .not('order_id', 'is', null);
-      if (!cancelled) setIds(new Set((data || []).map((n: { order_id: string }) => n.order_id)));
+      const { ordersWithUpdates } = await getClientUnreadCounts(userId);
+      if (!cancelled) setIds(ordersWithUpdates);
     };
     load();
     window.addEventListener(NOTIFICATIONS_CHANGED, load);

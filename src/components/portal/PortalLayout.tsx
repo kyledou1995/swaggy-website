@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
+import { getClientUnreadCounts } from '@/lib/order-reads';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -95,21 +96,9 @@ export const PortalLayout: React.FC<PortalLayoutProps> = ({
     if (!userId) return;
 
     const fetchBadgeCounts = async () => {
-      const supabase = createClient();
-
-      // Get unread notifications grouped by type
-      const { data: notifications } = await supabase
-        .from('notifications')
-        .select('type')
-        .eq('user_id', userId)
-        .eq('target_role', 'client')
-        .eq('is_read', false);
-
-      if (notifications) {
-        const orderCount = notifications.filter((n: any) => n.type === 'order_status').length;
-        const messageCount = notifications.filter((n: any) => n.type === 'new_message').length;
-        setNavBadges({ orders: orderCount, messages: messageCount });
-      }
+      // Same rules as the Messages page and order list, independent of the bell
+      const { messages, orders } = await getClientUnreadCounts(userId);
+      setNavBadges({ orders, messages });
     };
 
     fetchBadgeCounts();

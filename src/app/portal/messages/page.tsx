@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { createClient } from '@/lib/supabase';
+import { markOrderSeen } from '@/lib/order-reads';
 import { notifyAdmins } from '@/lib/notifications';
 import { Order, OrderMessage, User } from '@/types';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
@@ -151,7 +152,13 @@ export default function PortalMessagesPage() {
         // Auto-select first thread with messages, or first thread
         if (conversationThreads.length > 0) {
           const firstWithMessages = conversationThreads.find(t => t.messages.length > 0);
-          setSelectedThread(firstWithMessages || conversationThreads[0]);
+          const first = firstWithMessages || conversationThreads[0];
+          setSelectedThread(first);
+          // On desktop the auto-selected thread is on screen, so it counts as read
+          if (first.unreadCount > 0 && window.matchMedia('(min-width: 768px)').matches) {
+            setThreads(conversationThreads.map(t => (t === first ? { ...t, unreadCount: 0 } : t)));
+            markOrderSeen(authUser.id, first.order.id);
+          }
         }
       } catch (error) {
         console.error('Error fetching messages:', error);
@@ -338,17 +345,7 @@ export default function PortalMessagesPage() {
                         setThreads(prev => prev.map(t =>
                           t.order.id === thread.order.id ? { ...t, unreadCount: 0 } : t
                         ));
-                        // Upsert message_reads to persist read state
-                        const supabase = createClient();
-                        supabase
-                          .from('message_reads')
-                          .upsert(
-                            { user_id: userId, order_id: thread.order.id, last_read_at: new Date().toISOString() },
-                            { onConflict: 'user_id,order_id' }
-                          )
-                          .then(({ error }) => {
-                            if (error) console.error('Error updating message read:', error);
-                          });
+                        markOrderSeen(userId, thread.order.id);
                       }
                     }}
                     className={`w-full text-left px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors animate-fade-up ${
