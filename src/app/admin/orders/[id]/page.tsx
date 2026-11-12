@@ -50,7 +50,7 @@ export default function AdminOrderDetailPage() {
   const [showSampleForm, setShowSampleForm] = useState(false);
   const [showSamplePhotoForm, setShowSamplePhotoForm] = useState(false);
   const [sampleImages, setSampleImages] = useState<File[]>([]);
-  const [sampleImagePreviews, setSampleImagePreviews] = useState<string[]>([]);
+  const [sampleImagePreviews, setSampleImagePreviews] = useState<(string | null)[]>([]);
   const [sampleDescription, setSampleDescription] = useState('');
   const [samplePricePerUnit, setSamplePricePerUnit] = useState('');
   const [sampleShippingDays, setSampleShippingDays] = useState('');
@@ -328,6 +328,11 @@ export default function AdminOrderDetailPage() {
   };
 
   const handleStatusUpdate = async () => {
+    // "Awaiting Sample Approval" with files attached: share them as the samples to review
+    if (newStatus === 'sample_approval_pending' && sampleImages.length > 0) {
+      await handleSubmitSamplePhotos({ description: updateMessage });
+      return;
+    }
     if (!newStatus || !updateMessage.trim()) {
       setStatusFeedback({ type: 'error', message: 'Please select a status and enter a message.' });
       return;
@@ -545,17 +550,43 @@ export default function AdminOrderDetailPage() {
   const handleRequestInfo = () =>
     handleQuickAction('action_required' as OrderStatus, 'We need additional information from you to proceed with this order. Please check your messages and respond.');
 
-  const handleSampleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const previewFor = (f: File) => (f.type.startsWith('image/') ? URL.createObjectURL(f) : null);
+
+  const addSampleFiles = (list: FileList | File[] | null) => {
+    const files = Array.from(list || []).filter((f) => {
+      if (f.size > 25 * 1024 * 1024) {
+        setStatusFeedback({ type: 'error', message: `${f.name} is larger than 25 MB.` });
+        return false;
+      }
+      return true;
+    });
     const newFiles = [...sampleImages, ...files].slice(0, 10);
     setSampleImages(newFiles);
-    setSampleImagePreviews(newFiles.map((f) => URL.createObjectURL(f)));
+    setSampleImagePreviews(newFiles.map(previewFor));
+  };
+
+  const handleSampleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addSampleFiles(e.target.files);
+    e.target.value = '';
   };
 
   const removeSampleImage = (idx: number) => {
     const newFiles = sampleImages.filter((_, i) => i !== idx);
     setSampleImages(newFiles);
-    setSampleImagePreviews(newFiles.map((f) => URL.createObjectURL(f)));
+    setSampleImagePreviews(newFiles.map(previewFor));
+  };
+
+  /** Opens the sample upload form and brings it into view. */
+  const openSamplePhotoForm = () => {
+    setShowSamplePhotoForm(true);
+    setTimeout(() => {
+      const el = document.getElementById('sample-photo-form');
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.remove('merchin-flash');
+      void el.offsetWidth;
+      el.classList.add('merchin-flash');
+    }, 50);
   };
 
   const handleSubmitSamplePricing = async () => {
@@ -630,9 +661,10 @@ export default function AdminOrderDetailPage() {
     }
   };
 
-  const handleSubmitSamplePhotos = async () => {
+  const handleSubmitSamplePhotos = async (opts?: { description?: string }) => {
+    const description = (opts?.description ?? sampleDescription).trim();
     if (sampleImages.length === 0) {
-      setStatusFeedback({ type: 'error', message: 'Please upload at least one sample photo.' });
+      setStatusFeedback({ type: 'error', message: 'Please add at least one sample photo or file.' });
       return;
     }
 
@@ -645,26 +677,32 @@ export default function AdminOrderDetailPage() {
       // Upload images to storage
       const uploadedUrls: string[] = [];
       for (const file of sampleImages) {
-        const ext = file.name.split('.').pop();
-        const path = `${orderId}/samples/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
+        const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9-_]+/gi, '-').slice(0, 40) || 'sample';
+        const path = `${orderId}/samples/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}.${ext}`;
         const { error: uploadError } = await supabase.storage.from('order-inspiration').upload(path, file);
         if (uploadError) throw uploadError;
         const { data: urlData } = supabase.storage.from('order-inspiration').getPublicUrl(path);
         uploadedUrls.push(urlData.publicUrl);
       }
 
-      // Update order with sample images and description (status stays at sample_approval_pending)
-      await supabase.from('orders').update({
+      // Save the sample files + description and move the order to "Awaiting Sample Approval"
+      const { error: sampleErr } = await supabase.from('orders').update({
+        status: 'sample_approval_pending',
+        updated_at: new Date().toISOString(),
         sample_images: uploadedUrls,
-        sample_description: sampleDescription || null,
+        sample_description: description || null,
         sample_physical_requested: false,
         sample_shipped: false,
         sample_quantity_requested: null,
         sample_quantity_approved: null,
         sample_quantity_note: null,
       }).eq('id', orderId);
+      if (sampleErr) throw sampleErr;
 
-      const msg = `Sample photos are ready for your review! We've uploaded ${uploadedUrls.length} photo(s) of your product samples.${sampleDescription ? `\n\nDescription: ${sampleDescription}` : ''}\n\nYou can approve directly from the photos, or request physical samples shipped to you.`;
+      const photoCount = sampleImages.filter((f) => f.type.startsWith('image/')).length;
+      const what = photoCount === uploadedUrls.length ? `${uploadedUrls.length} photo(s)` : `${uploadedUrls.length} file(s)`;
+      const msg = `Your samples are ready for review! We've shared ${what} of your product samples.${description ? `\n\n${description}` : ''}\n\nYou can approve directly from these, or request physical samples shipped to you.`;
 
       await supabase.from('order_updates').insert([{
         order_id: orderId,
@@ -683,16 +721,19 @@ export default function AdminOrderDetailPage() {
 
       setOrder({
         ...order!,
+        status: 'sample_approval_pending' as OrderStatus,
         sample_images: uploadedUrls,
-        sample_description: sampleDescription || null,
+        sample_description: description || null,
         sample_physical_requested: false,
         sample_shipped: false,
       });
-      setStatusFeedback({ type: 'success', message: 'Sample photos sent for client approval!' });
+      setStatusFeedback({ type: 'success', message: 'Status updated to "Awaiting Sample Approval" and sample files sent to the client.' });
       setShowSamplePhotoForm(false);
       setSampleImages([]);
       setSampleImagePreviews([]);
       setSampleDescription('');
+      setNewStatus('');
+      setUpdateMessage('');
 
       if (order?.client_id) {
         await notifyOrgMembers({
@@ -701,7 +742,7 @@ export default function AdminOrderDetailPage() {
           clientId: order.client_id,
           type: 'order_status',
           title: `Sample Photos Ready — #${order.order_number || orderId.slice(0, 8)}`,
-          body: 'Sample photos are ready for your review. Please approve or request physical samples.',
+          body: description || 'Your samples are ready for review. Please approve or request physical samples.',
           supabaseClient: supabase,
         });
       }
@@ -1161,6 +1202,50 @@ export default function AdminOrderDetailPage() {
       </AdminLayout>
     );
   }
+
+  /** Drop zone + previews for sample photos and files (images, PDFs, docs). */
+  const renderSampleFilePicker = (hint: string) => (
+    <div>
+      <div
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          addSampleFiles(e.dataTransfer.files);
+        }}
+        className="flex flex-wrap gap-3 mb-2"
+      >
+        {sampleImages.map((file, i) => (
+          <div key={i} className="relative group">
+            {sampleImagePreviews[i] ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={sampleImagePreviews[i]!} alt={file.name} className="w-24 h-24 rounded-lg object-cover border border-gray-200" />
+            ) : (
+              <div className="w-24 h-24 rounded-lg border border-gray-200 bg-white flex flex-col items-center justify-center p-1.5">
+                <FileText className="w-6 h-6 text-gray-400" />
+                <span className="text-[10px] text-gray-600 truncate w-full text-center mt-1">{file.name}</span>
+              </div>
+            )}
+            <button
+              type="button"
+              aria-label={`Remove ${file.name}`}
+              onClick={() => removeSampleImage(i)}
+              className="absolute -top-2 -right-2 bg-gray-900 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        {sampleImages.length < 10 && (
+          <label className="w-24 h-24 rounded-lg border-2 border-dashed border-gray-300 bg-white flex flex-col items-center justify-center cursor-pointer hover:border-purple-400 transition-colors">
+            <Upload className="w-5 h-5 text-gray-400" />
+            <span className="text-xs text-gray-500 mt-1">Add files</span>
+            <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.ai,.eps,.svg,.zip" className="hidden" onChange={handleSampleImageSelect} />
+          </label>
+        )}
+      </div>
+      <p className="text-xs text-gray-500">{hint}</p>
+    </div>
+  );
 
   return (
     <AdminLayout>
@@ -1685,44 +1770,24 @@ export default function AdminOrderDetailPage() {
 
             {/* Sample Photos Form (admin uploads photos + description) */}
             {(showSamplePhotoForm || (order.status === 'sample_approval_pending' && (!order.sample_images || order.sample_images.length === 0))) && (
-              <Card className="border-2 border-purple-200 bg-purple-50">
+              <Card id="sample-photo-form" className="border-2 border-purple-200 bg-purple-50 scroll-mt-24">
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <Camera className="w-5 h-5 text-purple-600" />
-                    <h2 className="text-lg font-semibold text-gray-900">Upload Sample Photos</h2>
+                    <h2 className="text-lg font-semibold text-gray-900">Upload Sample Photos &amp; Files</h2>
                   </div>
                   <p className="text-sm text-gray-600 mt-1">
-                    Upload sample photos and add a description for the client.
+                    Share sample photos or files with the client and add a description. This sets the order to &ldquo;Awaiting Sample Approval&rdquo;.
                   </p>
                 </CardHeader>
                 <CardBody>
                   <div className="space-y-4">
-                    {/* Photo Upload */}
+                    {/* Photo / file upload */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Sample Photos <span className="text-red-500">*</span>
+                        Sample photos &amp; files <span className="text-red-500">*</span>
                       </label>
-                      <div className="flex flex-wrap gap-3 mb-2">
-                        {sampleImagePreviews.map((url, idx) => (
-                          <div key={idx} className="relative group">
-                            <img src={fileUrl(url)} alt={`Sample ${idx + 1}`} className="w-24 h-24 rounded-lg object-cover border border-gray-200" />
-                            <button
-                              onClick={() => removeSampleImage(idx)}
-                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                        {sampleImages.length < 10 && (
-                          <label className="w-24 h-24 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-purple-400 transition-colors">
-                            <Upload className="w-5 h-5 text-gray-400" />
-                            <span className="text-xs text-gray-400 mt-1">Upload</span>
-                            <input type="file" accept="image/*" multiple className="hidden" onChange={handleSampleImageSelect} />
-                          </label>
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-500">Upload up to 10 photos. These will be shown to the client.</p>
+                      {renderSampleFilePicker('Photos, PDFs, spec sheets… up to 10 files, 25 MB each. Drag and drop works too. These are shown to the client.')}
                     </div>
 
                     {/* Description */}
@@ -1739,8 +1804,8 @@ export default function AdminOrderDetailPage() {
                 </CardBody>
                 <CardFooter>
                   <div className="flex gap-3">
-                    <Button variant="primary" onClick={handleSubmitSamplePhotos} isLoading={sampleSubmitting}>
-                      Send Photos to Client
+                    <Button variant="primary" onClick={() => handleSubmitSamplePhotos()} isLoading={sampleSubmitting}>
+                      Send to Client
                     </Button>
                     <Button variant="secondary" onClick={() => { setShowSamplePhotoForm(false); setSampleImages([]); setSampleImagePreviews([]); setSampleDescription(''); }}>
                       Cancel
@@ -1848,12 +1913,8 @@ export default function AdminOrderDetailPage() {
                   </div>
                 </CardHeader>
                 <CardBody>
-                  <div className="flex flex-wrap gap-3 mb-3">
-                    {order.sample_images.map((url: string, idx: number) => (
-                      <a key={idx} href={fileUrl(url)} target="_blank" rel="noopener noreferrer">
-                        <img src={fileUrl(url)} alt={`Sample ${idx + 1}`} className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
-                      </a>
-                    ))}
+                  <div className="mb-3">
+                    <AttachmentList urls={order.sample_images} />
                   </div>
                   {order.sample_description && (
                     <p className="text-sm text-gray-700"><span className="font-medium">Description:</span> {order.sample_description}</p>
@@ -1917,13 +1978,23 @@ export default function AdminOrderDetailPage() {
                   helperText="This message will be sent to the client"
                   rows={4}
                 />
+                {newStatus === 'sample_approval_pending' && (
+                  <div className="rounded-lg border border-purple-200 bg-white p-4">
+                    <p className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-purple-600" /> Sample photos &amp; files
+                    </p>
+                    {renderSampleFilePicker('Attach photos, PDFs or spec sheets for the client to review. Your message above is shown with them.')}
+                  </div>
+                )}
                 <Button
                   variant="primary"
                   onClick={handleStatusUpdate}
-                  isLoading={isLoadingStatus}
+                  isLoading={isLoadingStatus || sampleSubmitting}
                   className="w-full"
                 >
-                  Update Status
+                  {newStatus === 'sample_approval_pending' && sampleImages.length > 0
+                    ? `Update Status & Send ${sampleImages.length} File${sampleImages.length === 1 ? '' : 's'}`
+                    : 'Update Status'}
                 </Button>
               </CardBody>
             </Card>
@@ -1959,13 +2030,13 @@ export default function AdminOrderDetailPage() {
                       Set Sample Pricing
                     </Button>
                   )}
-                  {order.status === 'sample_approval_pending' && (!order.sample_images || order.sample_images.length === 0) && (
+                  {['sample_production', 'sample_approval_pending', 'sample_approved'].includes(order.status) && (
                     <Button
                       variant="secondary"
-                      onClick={() => setShowSamplePhotoForm(true)}
+                      onClick={openSamplePhotoForm}
                       className="w-full"
                     >
-                      Upload Sample Photos
+                      {order.sample_images?.length ? 'Upload New Sample Photos' : 'Upload Sample Photos'}
                     </Button>
                   )}
                   <Button

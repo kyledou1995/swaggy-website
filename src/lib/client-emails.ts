@@ -299,9 +299,9 @@ export function renderClientEmail(event: ClientEmailEvent, ctx: ClientEmailConte
       const n = o.sample_images?.length || 0;
       p = {
         subject: `Your samples are ready to review — ${no}`,
-        preheader: n ? `${n} new photo${n === 1 ? '' : 's'} waiting for your approval.` : 'New sample photos are waiting for your approval.',
+        preheader: n ? `${n} new sample file${n === 1 ? '' : 's'} waiting for your approval.` : 'Your samples are waiting for your approval.',
         heading: 'Your samples are ready to review',
-        body: `We uploaded ${n ? `<b>${n} photo${n === 1 ? '' : 's'}</b>` : 'photos'} of your samples. Approve them to start full production, or request physical samples shipped to you.`,
+        body: `We shared ${n ? `<b>${n} photo${n === 1 ? '' : 's'}/file${n === 1 ? '' : 's'}</b>` : 'photos'} of your samples in the portal. Approve them to start full production, or request physical samples shipped to you.`,
         quote: o.sample_description || null,
         cta: 'Review samples',
       };

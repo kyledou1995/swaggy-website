@@ -1591,14 +1591,8 @@ export default function OrderDetailPage() {
               {/* Sample Photos */}
               {order.sample_images && order.sample_images.length > 0 && (
                 <div className="mb-6">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Sample Photos</p>
-                  <div className="flex flex-wrap gap-3">
-                    {order.sample_images.map((url: string, idx: number) => (
-                      <a key={idx} href={fileUrl(url)} target="_blank" rel="noopener noreferrer">
-                        <img src={fileUrl(url)} alt={`Sample ${idx + 1}`} className="w-28 h-28 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
-                      </a>
-                    ))}
-                  </div>
+                  <p className="text-sm font-medium text-gray-700">Sample photos &amp; files</p>
+                  <AttachmentList urls={order.sample_images} />
                 </div>
               )}
 
