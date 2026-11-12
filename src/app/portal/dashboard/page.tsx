@@ -247,7 +247,7 @@ export default function DashboardPage() {
                       </td>
                       <td className="px-6 py-4">
                         <Link href={orderHref(order)}>
-                          <Button variant={order.status === 'draft' ? 'secondary' : 'ghost'} size="sm">
+                          <Button variant="secondary" size="sm" className="min-w-[96px]">
                             {order.status === 'draft' ? 'Continue' : 'View'}
                           </Button>
                         </Link>
