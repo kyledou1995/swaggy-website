@@ -844,7 +844,9 @@ export default function AdminOrderDetailPage() {
 
       const qty = order!.sample_quantity_approved || order!.sample_quantity_requested || 0;
       const trackLine = tracking ? `\n\nTracking (${chosenCarrier}): ${tracking}\n${trackingUrl(tracking, chosenCarrier)}` : '';
-      const msg = `Your ${qty ? `${qty} ` : ''}physical sample(s) have been shipped!${order!.sample_shipping_days ? ` Estimated delivery: ${order!.sample_shipping_days} days.` : ''} Please review them upon arrival and let us know if you approve.${trackLine}`;
+      const msg = order!.sample_shipped && tracking
+        ? `Here's the tracking for your physical sample(s).${trackLine}`
+        : `Your ${qty ? `${qty} ` : ''}physical sample(s) have been shipped!${order!.sample_shipping_days ? ` Estimated delivery: ${order!.sample_shipping_days} days.` : ''} Please review them upon arrival and let us know if you approve.${trackLine}`;
 
       await supabase.from('order_messages').insert([{
         order_id: orderId,
@@ -1879,7 +1881,7 @@ export default function AdminOrderDetailPage() {
                     )}
 
                     {/* Mark as shipped with tracking */}
-                    {!order.sample_shipped && showShipForm && (
+                    {showShipForm && (!order.sample_shipped || !order.sample_tracking_number) && (
                       <div className="space-y-3 bg-white rounded-lg p-4 border border-gray-200">
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div className="sm:col-span-2">
@@ -1906,8 +1908,10 @@ export default function AdminOrderDetailPage() {
                         </div>
                         <p className="text-xs text-gray-500">The client gets the tracking number and a tracking link by email and in their portal.</p>
                         <div className="flex gap-2">
-                          <Button variant="primary" size="sm" onClick={handleConfirmSampleShipped} isLoading={isLoadingStatus}>
-                            {trackingNumber.trim() ? 'Confirm Shipped' : 'Confirm Shipped (no tracking)'}
+                          <Button variant="primary" size="sm" onClick={handleConfirmSampleShipped} isLoading={isLoadingStatus} disabled={!!order.sample_shipped && !trackingNumber.trim()}>
+                            {order.sample_shipped
+                              ? 'Send Tracking to Client'
+                              : trackingNumber.trim() ? 'Confirm Shipped' : 'Confirm Shipped (no tracking)'}
                           </Button>
                           <Button variant="secondary" size="sm" onClick={() => { setShowShipForm(false); setTrackingNumber(''); setCarrier(''); }}>
                             Cancel
@@ -1937,6 +1941,14 @@ export default function AdminOrderDetailPage() {
                           <Badge variant="success">
                             <CheckCircle className="w-3 h-3 mr-1" /> Samples Shipped
                           </Badge>
+                        )}
+                        {order.sample_shipped && !order.sample_tracking_number && !showShipForm && (
+                          <button
+                            onClick={() => setShowShipForm(true)}
+                            className="text-sm text-green-700 hover:text-green-800 font-medium underline underline-offset-2"
+                          >
+                            Add tracking number
+                          </button>
                         )}
                       </div>
                     ) : (
