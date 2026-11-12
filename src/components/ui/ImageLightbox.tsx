@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { fileUrl } from '@/lib/file-url';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react';
 import { fileNameFromUrl } from '@/lib/info-requests';
@@ -8,7 +9,7 @@ import { fileNameFromUrl } from '@/lib/info-requests';
 /** Adds Supabase's ?download param so the browser saves the file instead of opening it. */
 function downloadUrl(url: string) {
   if (!/\/storage\/v1\/object\/public\//.test(url)) return url;
-  return `${url}${url.includes('?') ? '&' : '?'}download=${encodeURIComponent(fileNameFromUrl(url))}`;
+  return `${fileUrl(url)}${url.includes('?') ? '&' : '?'}download=${encodeURIComponent(fileNameFromUrl(url))}`;
 }
 
 /** Full-screen in-app image viewer. Esc / backdrop closes, arrow keys switch images. */
@@ -90,7 +91,7 @@ export function ImageLightbox({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           key={url}
-          src={url}
+          src={fileUrl(url)}
           alt={fileNameFromUrl(url)}
           onClick={(e) => e.stopPropagation()}
           className="max-w-full max-h-full object-contain rounded-lg shadow-2xl select-none"

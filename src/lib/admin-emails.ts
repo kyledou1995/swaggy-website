@@ -3,6 +3,7 @@
  * Sent to every admin when a client takes an action that needs the team.
  */
 import type { Order } from '@/types';
+import { fileUrl } from './file-url';
 
 export type AdminEmailEvent =
   | 'new_order'
@@ -34,7 +35,7 @@ const FONT = 'Inter,Helvetica,Arial,sans-serif';
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 /** Attachment links block for emails. */
-function attachmentsHtml(urls: string[] | null | undefined) {
+function attachmentsHtml(urls: string[] | null | undefined, BASE: string) {
   const list = (urls || []).filter((u) => /^https:\/\//.test(u));
   if (!list.length) return '';
   const name = (u: string) => {
@@ -47,7 +48,7 @@ function attachmentsHtml(urls: string[] | null | undefined) {
   return `<div style="margin:0 0 22px"><div style="font:600 12px ${FONT};color:#737373;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Attachments (${list.length})</div>${list
     .map(
       (u) =>
-        `<a href="${u}" style="display:block;margin:0 0 6px;padding:10px 12px;border:1px solid #e5e5e5;border-radius:8px;font:500 13px ${FONT};color:#059669;text-decoration:none">&#128206; ${esc(name(u))}</a>`
+        `<a href="${fileUrl(u, BASE)}" style="display:block;margin:0 0 6px;padding:10px 12px;border:1px solid #e5e5e5;border-radius:8px;font:500 13px ${FONT};color:#059669;text-decoration:none">&#128206; ${esc(name(u))}</a>`
     )
     .join('')}</div>`;
 }
@@ -120,7 +121,7 @@ function render(p: Parts, ctx: Omit<AdminEmailContext, 'order'> & { order?: Orde
 <div style="font:600 12px ${FONT};color:#737373;margin:14px 0 6px">${contextLine}</div>
 <div style="font:700 21px/1.3 ${FONT};color:#171717;margin-bottom:12px">${esc(p.heading)}</div>
 <div style="font:15px/1.6 ${FONT};color:#525252;margin-bottom:20px">${p.body}</div>
-${hl}${quoteHtml}${attachmentsHtml(ctx.attachments)}${rowsHtml}
+${hl}${quoteHtml}${attachmentsHtml(ctx.attachments, ctx.baseUrl)}${rowsHtml}
 <table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#171717" style="border-radius:8px"><a href="${url}" style="display:inline-block;padding:12px 24px;font:600 14px ${FONT};color:#ffffff;text-decoration:none;border-radius:8px">${esc(p.cta)} &rarr;</a></td></tr></table>
 </td></tr>
 <tr><td align="center" style="padding:18px;font:12px/1.6 ${FONT};color:#a3a3a3">Internal notification for Merchin admins · sent from an unmonitored address</td></tr>

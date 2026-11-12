@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { fileUrl } from '@/lib/file-url';
 import { Send, FileText, AlertCircle, Plane, Ship, DollarSign, CheckCircle, XCircle, AlertTriangle, Upload, Camera, Package } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/admin/AdminLayout';
@@ -1317,9 +1318,9 @@ export default function AdminOrderDetailPage() {
                       <p className="text-sm text-gray-600 font-medium mb-2">Company Logo</p>
                       <div className="flex flex-wrap gap-3">
                         {(order as any).logo_files.map((url: string, idx: number) => (
-                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
+                          <a key={idx} href={fileUrl(url)} target="_blank" rel="noopener noreferrer">
                             <img
-                              src={url}
+                              src={fileUrl(url)}
                               alt={`Logo ${idx + 1}`}
                               className="w-24 h-24 rounded-lg object-contain border border-gray-200 hover:opacity-80 transition-opacity bg-white p-1"
                             />
@@ -1334,9 +1335,9 @@ export default function AdminOrderDetailPage() {
                       <p className="text-sm text-gray-600 font-medium mb-2">Inspiration Images</p>
                       <div className="flex flex-wrap gap-3">
                         {(order as any).inspiration_images.map((url: string, idx: number) => (
-                          <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
+                          <a key={idx} href={fileUrl(url)} target="_blank" rel="noopener noreferrer">
                             <img
-                              src={url}
+                              src={fileUrl(url)}
                               alt={`Inspiration ${idx + 1}`}
                               className="w-24 h-24 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity"
                             />
@@ -1385,11 +1386,11 @@ export default function AdminOrderDetailPage() {
                             const ext = url.split('.').pop()?.toLowerCase() || '';
                             const isImage = ['png', 'jpg', 'jpeg', 'svg'].includes(ext);
                             return isImage ? (
-                              <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
-                                <img src={url} alt={`Dieline ${idx + 1}`} className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:ring-2 hover:ring-green-400 transition-all" />
+                              <a key={idx} href={fileUrl(url)} target="_blank" rel="noopener noreferrer">
+                                <img src={fileUrl(url)} alt={`Dieline ${idx + 1}`} className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:ring-2 hover:ring-green-400 transition-all" />
                               </a>
                             ) : (
-                              <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="w-20 h-20 rounded-lg border border-gray-200 bg-gray-50 flex flex-col items-center justify-center hover:ring-2 hover:ring-green-400 transition-all">
+                              <a key={idx} href={fileUrl(url)} target="_blank" rel="noopener noreferrer" className="w-20 h-20 rounded-lg border border-gray-200 bg-gray-50 flex flex-col items-center justify-center hover:ring-2 hover:ring-green-400 transition-all">
                                 <Package className="w-5 h-5 text-gray-400 mb-1" />
                                 <span className="text-[9px] text-gray-500 font-medium">{ext.toUpperCase()}</span>
                               </a>
@@ -1703,7 +1704,7 @@ export default function AdminOrderDetailPage() {
                       <div className="flex flex-wrap gap-3 mb-2">
                         {sampleImagePreviews.map((url, idx) => (
                           <div key={idx} className="relative group">
-                            <img src={url} alt={`Sample ${idx + 1}`} className="w-24 h-24 rounded-lg object-cover border border-gray-200" />
+                            <img src={fileUrl(url)} alt={`Sample ${idx + 1}`} className="w-24 h-24 rounded-lg object-cover border border-gray-200" />
                             <button
                               onClick={() => removeSampleImage(idx)}
                               className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
@@ -1848,8 +1849,8 @@ export default function AdminOrderDetailPage() {
                 <CardBody>
                   <div className="flex flex-wrap gap-3 mb-3">
                     {order.sample_images.map((url: string, idx: number) => (
-                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer">
-                        <img src={url} alt={`Sample ${idx + 1}`} className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
+                      <a key={idx} href={fileUrl(url)} target="_blank" rel="noopener noreferrer">
+                        <img src={fileUrl(url)} alt={`Sample ${idx + 1}`} className="w-20 h-20 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
                       </a>
                     ))}
                   </div>

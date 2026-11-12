@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
+import { fileUrl } from '@/lib/file-url';
 import { FileText, Paperclip, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { fileNameFromUrl, isImageUrl } from '@/lib/info-requests';
@@ -157,7 +158,7 @@ export function AttachmentList({ urls, dark = false }: { urls?: string[] | null;
           return (
             <button key={url} type="button" onClick={() => openAt(url)} aria-label="View image" className="block cursor-zoom-in">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt="Attachment" className="w-24 h-24 object-cover rounded-lg border border-black/10 hover:opacity-90" />
+              <img src={fileUrl(url)} alt="Attachment" className="w-24 h-24 object-cover rounded-lg border border-black/10 hover:opacity-90" />
             </button>
           );
         }
@@ -166,7 +167,7 @@ export function AttachmentList({ urls, dark = false }: { urls?: string[] | null;
           dark ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
         }`;
         return isLink ? (
-          <a key={url} href={url} target="_blank" rel="noopener noreferrer" className={chip}>
+          <a key={url} href={fileUrl(url)} target="_blank" rel="noopener noreferrer" className={chip}>
             <Paperclip className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">{name}</span>
           </a>
